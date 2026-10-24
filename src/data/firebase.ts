@@ -14,7 +14,7 @@ const config = {
 
 if (firebaseMode && Object.values(config).some((value) => !value))
   throw new Error(
-    "Firebase configuration is incomplete. Check .env.firebase.local.",
+    "Firebase configuration is incomplete. Check .env.firebase or the deployment environment variables.",
   );
 
 // Analytics is intentionally omitted: PG records do not need analytics events.

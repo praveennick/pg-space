@@ -1,4 +1,8 @@
+[build]
+command = "npm run build:firebase"
+publish = "dist"
+
 [[redirects]]
 from = "/*"
-to = "/"
+to = "/index.html"
 status = 200

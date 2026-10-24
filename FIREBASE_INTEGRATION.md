@@ -2,6 +2,10 @@
 
 Firebase mode is opt-in. The normal `npm run dev` command still opens the local IndexedDB demo. `npm run dev:firebase` opens a separate, signed-in Firestore workspace connected to the `lucky-luxury-mens-pg` web app using `.env.firebase.local`. The web config is a public project identifier, not an administrator credential. Analytics is intentionally not initialized.
 
+## Netlify deployment
+
+[netlify.toml](netlify.toml) runs `npm run build:firebase` and publishes `dist`. The committed `.env.firebase` contains only the public Firebase web configuration, so Netlify can build the signed-in app without your local `.env.firebase.local` file. Redeploy the site after pushing these files. The deployed app should show the Firebase sign-in screen, and the workspace should say **Saved to Firebase** after sign-in. Do not set `VITE_DATA_BACKEND=local` or override these web values in Netlify environment variables; build environment variables take precedence over the env file. Keep the Firestore rules and Email/Password Authentication enabled. Local demo records do not appear in Firebase until imported through Settings.
+
 ## One-time Firebase Console setup
 
 1. In **Authentication → Sign-in method**, enable **Email/Password**. Add your owner email/password in **Authentication → Users**. The app does not offer public account creation.
