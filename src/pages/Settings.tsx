@@ -1,4 +1,6 @@
-﻿import { useState, useRef, type FormEvent } from "react";
+import { useState, useRef, type FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Download,
   Upload,
@@ -9,18 +11,22 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useApp } from "../hooks/useApp";
-import { service, store } from "../data";
-import { demoData } from "../data/seed";
+import { firebaseStore, service, store } from "../data";
+import { demoData, emptyPropertyData } from "../data/seed";
 import { firebaseMode } from "../data/firebase";
 import { validateBackup } from "../services/application";
 import { download } from "../services/export";
 import { paise, type Snapshot } from "../domain/models";
 import { Button, Field, Modal, SectionTitle } from "../components/ui";
 export default function Settings() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { s } = useApp(),
     settings = s.settings[0],
     [busy, setBusy] = useState(false),
     [reset, setReset] = useState(false),
+    [clear, setClear] = useState(false),
+    [clearConfirmation, setClearConfirmation] = useState(""),
     [backup, setBackup] = useState<Snapshot | null>(null),
     file = useRef<HTMLInputElement>(null);
   const save = async (e: FormEvent<HTMLFormElement>) => {
@@ -249,10 +255,21 @@ export default function Settings() {
             <Upload size={16} /> Import backup
           </Button>
           {!firebaseMode && (
-            <Button variant="danger" onClick={() => setReset(true)}>
+            <Button
+              variant="outline"
+              disabled={busy}
+              onClick={() => setReset(true)}
+            >
               <RotateCcw size={16} /> Reset demo data
             </Button>
           )}
+          <Button
+            variant="danger"
+            disabled={busy}
+            onClick={() => setClear(true)}
+          >
+            <RotateCcw size={16} /> Clear all records
+          </Button>
           <input
             ref={file}
             hidden
@@ -302,6 +319,61 @@ export default function Settings() {
               }}
             >
               Yes, reset demo data
+            </Button>
+          </div>
+        </Modal>
+      )}
+      {clear && (
+        <Modal
+          title="Clear all records?"
+          description={
+            firebaseMode
+              ? "This clears the records in your signed-in Firebase account."
+              : "This clears the records saved in this browser."
+          }
+          onClose={() => {
+            if (busy) return;
+            setClear(false);
+            setClearConfirmation("");
+          }}
+        >
+          <div className="dialog-body">
+            <p>
+              This permanently removes rooms, beds, residents, rent bills,
+              payments, quotations, and other PG records. Property settings
+              return to the default “My PG”. Your sign-in account remains.
+              Download a backup first if you may need these records later.
+            </p>
+            <Field label="Type CLEAR to confirm">
+              <input
+                autoComplete="off"
+                value={clearConfirmation}
+                onChange={(event) => setClearConfirmation(event.target.value)}
+              />
+            </Field>
+            <Button
+              variant="danger"
+              disabled={busy || clearConfirmation !== "CLEAR"}
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  if (firebaseMode) await firebaseStore!.clearAllRecords();
+                  else await store.replace(emptyPropertyData());
+                  await queryClient.invalidateQueries({ queryKey: ["property"] });
+                  setClear(false);
+                  setClearConfirmation("");
+                  toast.success("All PG records cleared");
+                  navigate("/app/dashboard");
+                } catch (error) {
+                  toast.error(
+                    `${(error as Error).message} If some records were cleared, try again.`,
+                  );
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              {busy ? "Clearing records…" : "Clear all records"}
             </Button>
           </div>
         </Modal>

@@ -33,6 +33,13 @@ test("a resident photo and verification record can be added and removed", async 
     .setInputFiles(resolve("tests/artifacts/dashboard-mobile.png"));
   await expect(editor.getByAltText("New resident photo preview")).toBeVisible();
   await editor.getByLabel("Verification status").selectOption("Verified");
+  await expect(editor.getByText("Add the date checked.")).toHaveCount(0);
+  await expect(editor.getByText("Choose an ID type.")).toHaveCount(0);
+  await expect(editor.getByText("Add the staff member's name.")).toHaveCount(0);
+  await editor.getByRole("button", { name: "Save resident" }).click();
+  await expect(editor.getByText("Add the date checked.")).toBeVisible();
+  await expect(editor.getByText("Choose an ID type.")).toBeVisible();
+  await expect(editor.getByText("Add the staff member's name.")).toBeVisible();
   await editor.getByLabel("ID checked").selectOption("Driving licence");
   await editor.getByRole("textbox", { name: "Date checked" }).fill("20-10-2026");
   await editor.getByLabel("Checked by").fill("Test Staff");

@@ -806,7 +806,8 @@ textarea {
   justify-content: space-between;
   padding: 0 32px;
   background: var(--surface);
-  position: relative;
+  position: sticky;
+  top: 0;
   z-index: 20;
 }
 
@@ -940,6 +941,10 @@ textarea {
 
 .search-results small {
   color: var(--muted);
+}
+
+.mobile-search-panel {
+  display: none;
 }
 
 main {
@@ -1685,6 +1690,7 @@ td strong {
 }
 
 .mobile-menu,
+.mobile-search-toggle,
 .bottom-nav {
   display: none;
 }
@@ -3322,17 +3328,27 @@ td strong {
   .header {
     height: 62px;
     padding: 0 16px;
-    position: sticky;
-    top: 0;
   }
 
   .mobile-menu {
     display: inline-flex;
   }
 
+  .mobile-search-toggle {
+    display: inline-flex;
+  }
+
   .breadcrumb {
     gap: 8px;
     font-size: 10px;
+    min-width: 0;
+  }
+
+  .breadcrumb strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .breadcrumb>span {
@@ -3341,6 +3357,7 @@ td strong {
 
   .header-tools {
     gap: 3px;
+    flex-shrink: 0;
   }
 
   .header .icon-button {
@@ -3350,6 +3367,53 @@ td strong {
 
   .global-search {
     display: none;
+  }
+
+  .mobile-search-panel {
+    display: block;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    padding: 12px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 12px 24px #0002;
+  }
+
+  .mobile-search-field {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    color: var(--muted);
+  }
+
+  .mobile-search-field input {
+    flex: 1;
+    width: 100%;
+    min-height: 44px;
+    padding: 9px 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    font-size: 16px;
+  }
+
+  .mobile-search-field:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-light);
+  }
+
+  .mobile-search-panel .search-results {
+    position: static;
+    width: 100%;
+    max-height: min(50dvh, 330px);
+    overflow-y: auto;
+    margin-top: 8px;
+    box-shadow: none;
   }
 
   .header-separator {

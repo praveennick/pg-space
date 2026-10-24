@@ -16,6 +16,7 @@ import {
 } from "../domain/models";
 import type { DataStore, Repository } from "./contracts";
 import { cloudDb } from "./firebase";
+import { emptyPropertyData } from "./seed";
 
 const db = () => {
   if (!cloudDb) throw new Error("Firebase is not configured.");
@@ -147,6 +148,43 @@ export class FirestoreStore implements DataStore {
       for (const name of names)
         (current[name] as unknown[]) = structuredClone(state[name]);
     });
+  }
+
+  async clearAllRecords(): Promise<void> {
+    const owner = this.owner();
+    const snapshots = await Promise.all(
+      names.map((name) => getDocs(this.records(name))),
+    );
+    if (owner !== this.uid)
+      throw new Error("The signed-in account changed. Please reload.");
+
+    // Keep the property settings document until the final write so the app
+    // remains usable while a large account is cleared in several batches.
+    const records = snapshots.flatMap((snapshot, index) =>
+      snapshot.docs
+        .filter((item) => names[index] !== "settings" || item.id !== "property")
+        .map((item) => item.ref),
+    );
+    const version = this.version();
+    const apply = async (items: DocumentReference[], finish = false) => {
+      await runTransaction(db(), async (transaction) => {
+        const current = await transaction.get(version);
+        if (owner !== this.uid)
+          throw new Error("The signed-in account changed. Please reload.");
+        for (const item of items) transaction.delete(item);
+        if (finish) {
+          const settings = emptyPropertyData().settings[0];
+          transaction.set(doc(this.records("settings"), settings.id), settings);
+        }
+        transaction.set(version, {
+          number: Number(current.data()?.number || 0) + 1,
+        });
+      });
+    };
+
+    for (let index = 0; index < records.length; index += 200)
+      await apply(records.slice(index, index + 200));
+    await apply([], true);
   }
 
   subscribe(listener: () => void): () => void {

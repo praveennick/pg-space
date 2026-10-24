@@ -227,25 +227,31 @@ export async function initialize(store: DataStore) {
   });
 }
 
+export function emptyPropertyData(): Snapshot {
+  const state = emptySnapshot();
+  state.settings.push({
+    id: "property",
+    name: "My PG",
+    address: "",
+    phone: "",
+    email: "",
+    floors: 4,
+    maxCapacity: 12,
+    defaultRent: 850000,
+    defaultDeposit: 1500000,
+    dueDay: 5,
+    graceDays: 0,
+    prorate: true,
+    receiptPrefix: "PGS",
+    notifications: true,
+    reducedMotion: false,
+  });
+  return state;
+}
+
 export async function initializeCloud(store: DataStore) {
   await store.transact((state) => {
     if (state.settings.length) return;
-    state.settings.push({
-      id: "property",
-      name: "My PG",
-      address: "",
-      phone: "",
-      email: "",
-      floors: 4,
-      maxCapacity: 12,
-      defaultRent: 850000,
-      defaultDeposit: 1500000,
-      dueDay: 5,
-      graceDays: 0,
-      prorate: true,
-      receiptPrefix: "PGS",
-      notifications: true,
-      reducedMotion: false,
-    });
+    state.settings.push(emptyPropertyData().settings[0]);
   });
 }

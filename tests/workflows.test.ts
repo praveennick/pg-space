@@ -10,8 +10,9 @@ import {
   today,
   monthNow,
   uid,
+  names,
 } from "../src/domain/models";
-import { demoData } from "../src/data/seed";
+import { demoData, emptyPropertyData, initialize } from "../src/data/seed";
 import { bedStatus, balance, metrics } from "../src/domain/calculations";
 let store: LocalStore, service: ApplicationService;
 const room = () => ({
@@ -55,6 +56,23 @@ afterEach(async () => {
   await store.db.delete();
 });
 describe("transactional local workflows", () => {
+  it("clears every saved collection without restoring sample records", async () => {
+    await store.replace(demoData());
+    await store.db
+      .table("tenantPhotos")
+      .put({ tenantId: "test", data: "photo" });
+
+    await store.replace(emptyPropertyData());
+    await initialize(store);
+
+    const snapshot = await store.read();
+    for (const name of names.filter((name) => name !== "settings"))
+      expect(snapshot[name]).toHaveLength(0);
+    expect(snapshot.settings).toHaveLength(1);
+    expect(snapshot.settings[0].name).toBe("My PG");
+    expect(await store.db.table("tenantPhotos").count()).toBe(0);
+  });
+
   it("generates beds, safely expands, and preserves immutable IDs", async () => {
     const r = room();
     await service.saveRoom(r);

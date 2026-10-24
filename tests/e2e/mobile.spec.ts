@@ -1,5 +1,22 @@
 import { expect, test } from "@playwright/test";
 
+test("mobile header search finds a room and opens its details", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.goto("/app/dashboard");
+
+  await page.getByRole("button", { name: "Search residents and rooms" }).click();
+  const search = page.getByRole("search");
+  await expect(search.getByRole("textbox")).toBeFocused();
+  await search.getByRole("textbox").fill("101");
+  await search.getByRole("button", { name: /Room 101/ }).click();
+
+  await expect(page).toHaveURL(/\/app\/rooms\//);
+  await expect(search).toBeHidden();
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+    .toBe(true);
+});
+
 test("mobile navigation and record details remain reachable", async ({
   page,
 }) => {

@@ -1,5 +1,5 @@
 ﻿import { AppContext } from "./hooks/useApp";
-import { useState, useEffect, lazy, Suspense, type ReactNode } from "react";
+import { useState, useEffect, useRef, lazy, Suspense, type ReactNode } from "react";
 import {
   BrowserRouter,
   NavLink,
@@ -99,7 +99,11 @@ function Shell() {
     [collapsed, setCollapsed] = useState(false),
     [mobile, setMobile] = useState(false),
     [search, setSearch] = useState(""),
+    [mobileSearch, setMobileSearch] = useState(false),
     [help, setHelp] = useState(false);
+  const mobileSearchInput = useRef<HTMLInputElement>(null);
+  const mobileSearchPanel = useRef<HTMLDivElement>(null);
+  const mobileSearchToggle = useRef<HTMLButtonElement>(null);
   const [theme, setTheme] = useState(
     () => localStorage.getItem("pg-theme") || "light",
   );
@@ -132,6 +136,28 @@ function Shell() {
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [mobile]);
+  useEffect(() => {
+    if (!mobileSearch) return;
+    mobileSearchInput.current?.focus();
+    const closeSearch = (event: KeyboardEvent | PointerEvent) => {
+      if (event.type === "keydown") {
+        if ((event as KeyboardEvent).key !== "Escape") return;
+      } else if (
+        mobileSearchPanel.current?.contains(event.target as Node) ||
+        mobileSearchToggle.current?.contains(event.target as Node)
+      ) {
+        return;
+      }
+      setMobileSearch(false);
+      setSearch("");
+    };
+    document.addEventListener("keydown", closeSearch);
+    document.addEventListener("pointerdown", closeSearch);
+    return () => {
+      document.removeEventListener("keydown", closeSearch);
+      document.removeEventListener("pointerdown", closeSearch);
+    };
+  }, [mobileSearch]);
   if (error)
     return (
       <div className="boot">
@@ -173,6 +199,32 @@ function Shell() {
           })),
       ]
     : [];
+  const selectSearchResult = (url: string) => {
+    navigate(url);
+    setSearch("");
+    setMobileSearch(false);
+  };
+  const renderSearchResults = () =>
+    search.trim() && (
+      <div className="search-results">
+        {results.length ? (
+          results.map((result) => (
+            <button
+              key={result.url}
+              onClick={() => selectSearchResult(result.url)}
+            >
+              <span>{result.label}</span>
+              <small>{result.type}</small>
+            </button>
+          ))
+        ) : (
+          <p>No matching rooms or residents.</p>
+        )}
+        <button onClick={() => setSearch("")}>
+          <X size={14} /> Clear search
+        </button>
+      </div>
+    );
   return (
     <AppContext.Provider value={{ s, open: setEditor }}>
       <div
@@ -301,6 +353,19 @@ function Shell() {
               <strong>{title}</strong>
             </div>
             <div className="header-tools">
+              <button
+                ref={mobileSearchToggle}
+                className="icon-button mobile-search-toggle"
+                aria-label={mobileSearch ? "Close search" : "Search residents and rooms"}
+                aria-expanded={mobileSearch}
+                aria-controls="mobile-search-panel"
+                onClick={() => {
+                  setMobileSearch(!mobileSearch);
+                  setSearch("");
+                }}
+              >
+                {mobileSearch ? <X size={19} /> : <Search size={19} />}
+              </button>
               <div className="global-search">
                 <Search size={16} />
                 <input
@@ -310,29 +375,7 @@ function Shell() {
                   onChange={(e) => setSearch(e.target.value)}
                 />
                 <kbd>⌕</kbd>
-                {search && (
-                  <div className="search-results">
-                    {results.length ? (
-                      results.map((r) => (
-                        <button
-                          key={r.url}
-                          onClick={() => {
-                            navigate(r.url);
-                            setSearch("");
-                          }}
-                        >
-                          <span>{r.label}</span>
-                          <small>{r.type}</small>
-                        </button>
-                      ))
-                    ) : (
-                      <p>No matching rooms or tenants.</p>
-                    )}
-                    <button onClick={() => setSearch("")}>
-                      <X size={14} /> Close search
-                    </button>
-                  </div>
-                )}
+                {renderSearchResults()}
               </div>
               <AppMenu
                 label={
@@ -386,6 +429,26 @@ function Shell() {
                 ))}
               </AppMenu>
             </div>
+            {mobileSearch && (
+              <div
+                id="mobile-search-panel"
+                ref={mobileSearchPanel}
+                className="mobile-search-panel"
+                role="search"
+              >
+                <div className="mobile-search-field">
+                  <Search size={18} aria-hidden="true" />
+                  <input
+                    ref={mobileSearchInput}
+                    aria-label="Search residents and rooms"
+                    placeholder="Find a resident or room…"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                  />
+                </div>
+                {renderSearchResults()}
+              </div>
+            )}
           </header>
           <main>
             <Suspense

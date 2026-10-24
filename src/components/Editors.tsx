@@ -333,6 +333,7 @@ function TenantEditor({
     [busy, setBusy] = useState(false),
     [photo, setPhoto] = useState<Blob | null>(null),
     [removePhoto, setRemovePhoto] = useState(false),
+    [verificationAttempted, setVerificationAttempted] = useState(false),
     [bedId, setBed] = useState(editor.bedId || reservation?.bedId || ""),
     [floor, setFloor] = useState("all"),
     [roomId, setRoom] = useState("all");
@@ -395,6 +396,7 @@ function TenantEditor({
     verifyingStaff: string;
     aadhaarConsent: boolean;
   }) => {
+    setVerificationAttempted(true);
     const nextErrors = getVerificationErrors(v);
     clearErrors([
       "verificationDate",
@@ -436,7 +438,7 @@ function TenantEditor({
       "aadhaarConsent",
     ]);
 
-    if (status !== "Verified") return;
+    if (status !== "Verified" || !verificationAttempted) return;
 
     Object.entries(nextErrors).forEach(([field, message]) => {
       setError(
@@ -448,7 +450,7 @@ function TenantEditor({
         { type: "manual", message },
       );
     });
-  }, [verificationValues, clearErrors, setError]);
+  }, [verificationValues, verificationAttempted, clearErrors, setError]);
   const available = activeBeds(s).filter(
     (b) =>
       (bedStatus(s, b) === "Available" || b.id === reservation?.bedId) &&
@@ -608,7 +610,11 @@ function TenantEditor({
               </p>
               <div className="form-grid">
                 <Field label="Verification status">
-                  <select {...register("verificationStatus")}>
+                  <select
+                    {...register("verificationStatus", {
+                      onChange: () => setVerificationAttempted(false),
+                    })}
+                  >
                     <option value="Not checked">Not checked</option>
                     <option value="Pending">Pending</option>
                     <option value="Verified">Verified</option>
