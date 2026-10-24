@@ -234,6 +234,52 @@ describe("automatic tenant login setup", () => {
     expect((await invoke(request({ resend: true }))).status).toBe(429);
     expect(fetcher).toHaveBeenCalledTimes(3);
   });
+  it("credits definite configuration failures but retains the PG-wide limit", async () => {
+    fetcher.mockImplementation(async () =>
+      Response.json(
+        { error: { message: "UNAUTHORIZED_DOMAIN" } },
+        { status: 400 },
+      ),
+    );
+    for (let attempt = 0; attempt < 30; attempt++) {
+      expect((await invoke(request({ resend: true }))).status).toBe(400);
+      expect(documents.get(statePath)?.attempts).toBe(0);
+    }
+    expect((await invoke(request({ resend: true }))).status).toBe(429);
+    expect(fetcher).toHaveBeenCalledTimes(30);
+  });
+  it("does not credit provider quota rejections or uncertain submissions", async () => {
+    fetcher.mockImplementation(async () =>
+      Response.json(
+        { error: { message: "TOO_MANY_ATTEMPTS_TRY_LATER" } },
+        { status: 429 },
+      ),
+    );
+    expect((await invoke()).status).toBe(429);
+    expect(documents.get(statePath)?.attempts).toBe(1);
+    fetcher.mockRejectedValue(new Error("timeout"));
+    expect((await invoke(request({ resend: true }))).status).toBe(500);
+    expect(documents.get(statePath)?.attempts).toBe(2);
+  });
+  it("does not overwrite or credit a newer invitation after a late failure", async () => {
+    fetcher.mockImplementation(async () => {
+      documents.set(statePath, {
+        attemptId: "newer",
+        status: "submitted",
+        attempts: 3,
+      });
+      return Response.json(
+        { error: { message: "UNAUTHORIZED_DOMAIN" } },
+        { status: 400 },
+      );
+    });
+    expect((await invoke()).status).toBe(400);
+    expect(documents.get(statePath)).toEqual({
+      attemptId: "newer",
+      status: "submitted",
+      attempts: 3,
+    });
+  });
   it("does not automatically retry a stale processing request", async () => {
     documents.set(statePath, {
       status: "processing",

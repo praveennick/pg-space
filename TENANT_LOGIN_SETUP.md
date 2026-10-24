@@ -52,7 +52,7 @@ The app reports **email requested** after Firebase accepts the request; this doe
 
 If server configuration or email sending fails, the resident remains saved and the app shows the failure. Use the profile button after fixing setup. Local `npm run dev` never creates accounts or sends emails; Firebase mode on Vite alone needs Netlify Dev or a deployed function for this endpoint.
 
-Sending is limited to 30 requests per PG and 3 per resident per hour. Status records are stored under `accounts/{owner}/tenantOnboarding/{tenant}`. They contain email, account ID, timestamps and request status, never passwords or action links. No provider delivery status is available from Firebase's password-reset API.
+Sending is limited to 30 requests per PG and 3 per resident per hour. Confirmed configuration rejections (such as an unauthorized domain or invalid API key) return the resident's attempt allowance; they still count toward the PG-wide limit. Accepted submissions, provider quota errors and uncertain requests still count. The limit message shows the minutes remaining until the hourly window resets. Status records are stored under `accounts/{owner}/tenantOnboarding/{tenant}`. They contain email, account ID, timestamps and request status, never passwords or action links. No provider delivery status is available from Firebase's password-reset API.
 
 ## Deployment troubleshooting
 

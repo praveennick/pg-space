@@ -1,5 +1,6 @@
 import type { Auth, DecodedIdToken, UserRecord } from "firebase-admin/auth";
 import type { Firestore } from "firebase-admin/firestore";
+import { randomUUID } from "node:crypto";
 import { z } from "zod/v4";
 import { firebaseEmailFailure } from "./firebase-email-errors";
 
@@ -76,6 +77,7 @@ export async function handleTenantOnboarding(
   let inviteRef: ReturnType<Firestore["doc"]> | undefined;
   let reserved = false;
   let emailRequestStarted = false;
+  const attemptId = randomUUID();
   try {
     const origin = request.headers.get("origin");
     if (origin && origin !== new URL(appUrl).origin)
@@ -236,7 +238,7 @@ export async function handleTenantOnboarding(
       if (accountAttempts >= 30 || residentAttempts >= 3)
         throw new Failure(
           429,
-          "Too many login email requests. Please try again in the next hour.",
+          `Too many login email requests. Please try again in ${Math.max(1, Math.ceil(((hour + 1) * 3_600_000 - time) / 60_000))} minutes.`,
         );
       transaction.set(rateRef, { hour, attempts: accountAttempts + 1 });
       transaction.set(inviteRef!, {
@@ -244,6 +246,7 @@ export async function handleTenantOnboarding(
         hour,
         attempts: residentAttempts + 1,
         status: "processing",
+        attemptId,
         startedAt: time,
         requestedBy: actor.uid,
       });
@@ -306,10 +309,16 @@ export async function handleTenantOnboarding(
       throw new Failure(provider.status, provider.message, provider.code);
     }
     try {
-      await inviteRef.set(
-        { status: "submitted", authUid: user.uid, submittedAt: now() },
-        { merge: true },
-      );
+      await db.runTransaction(async (transaction) => {
+        const current = (await transaction.get(inviteRef!)).data();
+        if (current?.attemptId !== attemptId) return;
+        transaction.set(inviteRef!, {
+          ...current,
+          status: "submitted",
+          authUid: user!.uid,
+          submittedAt: now(),
+        });
+      });
     } catch {
       console.error("Tenant login email accepted; status persistence failed.");
     }
@@ -317,16 +326,39 @@ export async function handleTenantOnboarding(
   } catch (cause) {
     if (reserved && inviteRef) {
       try {
-        await inviteRef.set(
-          {
+        await db.runTransaction(async (transaction) => {
+          const current = (await transaction.get(inviteRef!)).data();
+          if (
+            current?.attemptId !== attemptId ||
+            current.status !== "processing"
+          )
+            return;
+          const credit =
+            !emailRequestStarted &&
+            cause instanceof Failure &&
+            [
+              "UNAUTHORIZED_DOMAIN",
+              "INVALID_CONTINUE_URI",
+              "API_KEY_INVALID",
+              "API_KEY_RESTRICTED",
+              "PASSWORD_LOGIN_DISABLED",
+              "EMAIL_NOT_FOUND",
+            ].includes(cause.providerCode || "");
+          transaction.set(inviteRef!, {
+            ...current,
+            ...(credit
+              ? {
+                  attempts: Math.max(0, Number(current.attempts) - 1),
+                  creditedFailedAttempt: attemptId,
+                }
+              : {}),
             status: emailRequestStarted ? "uncertain" : "failed",
             updatedAt: now(),
             ...(cause instanceof Failure && cause.providerCode
               ? { errorCode: cause.providerCode }
               : {}),
-          },
-          { merge: true },
-        );
+          });
+        });
       } catch {
         console.error("Tenant login failure status could not be saved.");
       }
