@@ -1,4 +1,4 @@
-﻿import { useState, type FormEvent, type ReactNode } from "react";
+﻿import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import {
@@ -72,6 +72,45 @@ const expenseCategories = [
   "Furniture",
   "Other",
 ];
+
+export function getVerificationErrors(v: {
+  verificationStatus: string;
+  verificationDate: string;
+  verificationMethod: string;
+  verifyingStaff: string;
+  aadhaarConsent: boolean;
+}) {
+  const errors: Partial<
+    Record<
+      | "verificationDate"
+      | "verificationMethod"
+      | "verifyingStaff"
+      | "aadhaarConsent",
+      string
+    >
+  > = {};
+
+  if (v.verificationStatus !== "Verified") return errors;
+
+  if (!v.verificationDate) {
+    errors.verificationDate = "Add the date checked.";
+  }
+  if (!v.verificationMethod) {
+    errors.verificationMethod = "Choose an ID type.";
+  }
+  if (!v.verifyingStaff.trim()) {
+    errors.verifyingStaff = "Add the staff member's name.";
+  }
+  if (
+    v.verificationMethod === "Aadhaar checked in person" &&
+    !v.aadhaarConsent
+  ) {
+    errors.aadhaarConsent = "Consent is required for an Aadhaar check.";
+  }
+
+  return errors;
+}
+
 export function Editors({
   editor,
   onClose,
@@ -349,8 +388,12 @@ function TenantEditor({
     trigger,
     getValues,
     control,
+    setError,
+    clearErrors,
     formState: { errors },
   } = useForm({
+    mode: "onChange",
+    reValidateMode: "onChange",
     defaultValues: {
       name: existing?.name || reservation?.name || "",
       phone: existing?.phone || reservation?.phone || "",
@@ -372,6 +415,77 @@ function TenantEditor({
   });
   const verificationStatus = useWatch({ control, name: "verificationStatus" });
   const verificationMethod = useWatch({ control, name: "verificationMethod" });
+  const verificationValues = useWatch({
+    control,
+    name: [
+      "verificationStatus",
+      "verificationDate",
+      "verificationMethod",
+      "verifyingStaff",
+      "aadhaarConsent",
+    ],
+  });
+  const validateVerificationFields = (v: {
+    verificationStatus: string;
+    verificationDate: string;
+    verificationMethod: string;
+    verifyingStaff: string;
+    aadhaarConsent: boolean;
+  }) => {
+    const nextErrors = getVerificationErrors(v);
+    clearErrors([
+      "verificationDate",
+      "verificationMethod",
+      "verifyingStaff",
+      "aadhaarConsent",
+    ]);
+    if (Object.keys(nextErrors).length > 0) {
+      Object.entries(nextErrors).forEach(([field, message]) => {
+        setError(
+          field as
+            | "verificationDate"
+            | "verificationMethod"
+            | "verifyingStaff"
+            | "aadhaarConsent",
+          { type: "manual", message },
+        );
+      });
+      return false;
+    }
+    return true;
+  };
+
+  useEffect(() => {
+    if (!verificationValues) return;
+    const [status, date, method, staff, consent] = verificationValues;
+    const nextErrors = getVerificationErrors({
+      verificationStatus: status,
+      verificationDate: date,
+      verificationMethod: method,
+      verifyingStaff: staff,
+      aadhaarConsent: consent,
+    });
+
+    clearErrors([
+      "verificationDate",
+      "verificationMethod",
+      "verifyingStaff",
+      "aadhaarConsent",
+    ]);
+
+    if (status !== "Verified") return;
+
+    Object.entries(nextErrors).forEach(([field, message]) => {
+      setError(
+        field as
+          | "verificationDate"
+          | "verificationMethod"
+          | "verifyingStaff"
+          | "aadhaarConsent",
+        { type: "manual", message },
+      );
+    });
+  }, [verificationValues, clearErrors, setError]);
   const available = activeBeds(s).filter(
     (b) =>
       (bedStatus(s, b) === "Available" || b.id === reservation?.bedId) &&
@@ -380,25 +494,7 @@ function TenantEditor({
       (roomId === "all" || b.roomId === roomId),
   );
   const save = handleSubmit(async (v) => {
-    if (
-      v.verificationStatus === "Verified" &&
-      (!v.verificationDate || !v.verificationMethod || !v.verifyingStaff.trim())
-    ) {
-      toast.error(
-        "Add the date, ID checked, and staff name before marking this resident verified.",
-      );
-      return;
-    }
-    if (
-      v.verificationStatus === "Verified" &&
-      v.verificationMethod === "Aadhaar checked in person" &&
-      !v.aadhaarConsent
-    ) {
-      toast.error(
-        "Record voluntary consent before marking this Aadhaar check verified.",
-      );
-      return;
-    }
+    if (!validateVerificationFields(v)) return;
     setBusy(true);
     let newPhotoId: string | null = null;
     try {
@@ -461,7 +557,10 @@ function TenantEditor({
     }
   });
   const next = async () => {
-    if (step === 0 && !(await trigger(["name", "phone", "email"]))) return;
+    if (step === 0) {
+      if (!(await trigger(["name", "phone", "email"]))) return;
+      if (!validateVerificationFields(getValues())) return;
+    }
     if (step === 1 && !bedId) {
       toast.error("Select an available bed");
       return;
@@ -495,19 +594,21 @@ function TenantEditor({
           {(existing || step === 0) && (
             <>
               <h3>Resident details</h3>
-              {!firebaseMode && <TenantPhotoPicker
-                tenant={existing}
-                photo={photo}
-                removed={removePhoto}
-                onChange={(next) => {
-                  setPhoto(next);
-                  setRemovePhoto(false);
-                }}
-                onRemove={() => {
-                  setPhoto(null);
-                  setRemovePhoto(true);
-                }}
-              />}
+              {!firebaseMode && (
+                <TenantPhotoPicker
+                  tenant={existing}
+                  photo={photo}
+                  removed={removePhoto}
+                  onChange={(next) => {
+                    setPhoto(next);
+                    setRemovePhoto(false);
+                  }}
+                  onRemove={() => {
+                    setPhoto(null);
+                    setRemovePhoto(true);
+                  }}
+                />
+              )}
               <div className="form-grid">
                 <Field label="Full name *">
                   <input
@@ -552,7 +653,10 @@ function TenantEditor({
                   </select>
                 </Field>
                 <Field label="ID checked">
-                  <select {...register("verificationMethod")}>
+                  <select
+                    {...register("verificationMethod")}
+                    aria-invalid={Boolean(errors.verificationMethod)}
+                  >
                     <option value="">Choose an ID type</option>
                     <option value="Driving licence">Driving licence</option>
                     <option value="Voter ID">Voter ID</option>
@@ -562,6 +666,11 @@ function TenantEditor({
                     </option>
                     <option value="Other ID">Other ID</option>
                   </select>
+                  {errors.verificationMethod && (
+                    <small className="error">
+                      {errors.verificationMethod.message}
+                    </small>
+                  )}
                 </Field>
                 <Field label="Date checked">
                   <Controller
@@ -573,24 +682,43 @@ function TenantEditor({
                         value={field.value}
                         onChange={field.onChange}
                         max={today()}
+                        invalid={Boolean(errors.verificationDate)}
                       />
                     )}
                   />
+                  {errors.verificationDate && (
+                    <small className="error">
+                      {errors.verificationDate.message}
+                    </small>
+                  )}
                 </Field>
                 <Field label="Checked by">
                   <input
                     maxLength={100}
                     placeholder="Staff member's name"
                     {...register("verifyingStaff")}
+                    aria-invalid={Boolean(errors.verifyingStaff)}
                   />
+                  {errors.verifyingStaff && (
+                    <small className="error">
+                      {errors.verifyingStaff.message}
+                    </small>
+                  )}
                 </Field>
               </div>
               {verificationMethod === "Aadhaar checked in person" && (
                 <label className="check-label">
-                  <input type="checkbox" {...register("aadhaarConsent")} />
+                  <input
+                    type="checkbox"
+                    {...register("aadhaarConsent")}
+                    aria-invalid={Boolean(errors.aadhaarConsent)}
+                  />
                   Resident voluntarily agreed to this in-person Aadhaar check.
                   An alternative ID was offered.
                 </label>
+              )}
+              {errors.aadhaarConsent && (
+                <small className="error">{errors.aadhaarConsent.message}</small>
               )}
               {verificationStatus === "Verified" && (
                 <p className="notice">

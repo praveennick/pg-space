@@ -75,10 +75,20 @@ export default function Rooms() {
     setPage(1);
   };
   const selected = s.rooms.find((r) => r.id === id);
-  const roomCard = (r: (typeof s.rooms)[number]) => {
+  const roomCard = (r: (typeof s.rooms)[number], showAllBeds = false) => {
     const rb = beds.filter((b) => b.roomId === r.id),
       occ = rb.filter((b) => bedStatus(s, b) === "Occupied").length,
       av = rb.filter((b) => bedStatus(s, b) === "Available").length;
+    const selectedBedStatus = [
+      "Available",
+      "Occupied",
+      "Reserved",
+      "Maintenance",
+      "Cleaning",
+    ].includes(status) && !showAllBeds ? status : null;
+    const shownBeds = selectedBedStatus
+      ? rb.filter((b) => bedStatus(s, b) === selectedBedStatus)
+      : rb;
     return (
       <article className="room-card" key={r.id}>
         <div className="room-card-top">
@@ -103,8 +113,10 @@ export default function Rooms() {
         <div className="room-rent">
           <strong>{rupees(r.rent)}</strong>
           <span>/ bed / month</span>
-          <Badge status={av ? "Available" : "Occupied"}>
-            {av ? `${av} available` : "Full"}
+          <Badge status={selectedBedStatus || (av ? "Available" : "Occupied")}>
+            {selectedBedStatus
+              ? `${shownBeds.length} ${selectedBedStatus.toLowerCase()}`
+              : av ? `${av} available` : "Full"}
           </Badge>
         </div>
         <div className="facilities">
@@ -123,22 +135,35 @@ export default function Rooms() {
           </span>
         </div>
         <div className="bed-map">
-          {rb.map((b) => (
-            <button
-              key={b.id}
-              className={`bed ${bedStatus(s, b).toLowerCase()}`}
-              title={`${b.label} · ${bedStatus(s, b)}`}
-              aria-label={`Bed ${b.label}: ${bedStatus(s, b)}`}
-              onClick={() => open({ kind: "bed", id: b.id })}
-            >
-              <BedDouble size={22} />
-              <span>{b.label.split("-").at(-1)}</span>
-            </button>
-          ))}
+          {shownBeds.map((b) => {
+            const state = bedStatus(s, b);
+            const shortState = {
+              Available: "Free",
+              Occupied: "In use",
+              Reserved: "Held",
+              Maintenance: "Repair",
+              Cleaning: "Cleaning",
+            }[state];
+            return (
+              <button
+                key={b.id}
+                className={`bed ${state.toLowerCase()}`}
+                title={`${b.label} · ${state}`}
+                aria-label={`Bed ${b.label}: ${state}`}
+                onClick={() => open({ kind: "bed", id: b.id })}
+              >
+                <BedDouble size={22} />
+                <span className="bed-label">{b.label.split("-").at(-1)}</span>
+                <span className="bed-state">{shortState}</span>
+              </button>
+            );
+          })}
         </div>
         <div className="room-card-footer">
           <span>
-            {occ} of {rb.length} occupied
+            {selectedBedStatus
+              ? `Showing ${shownBeds.length} of ${rb.length} beds · ${occ} occupied`
+              : `${occ} of ${rb.length} occupied`}
           </span>
           <button onClick={() => navigate(`/app/rooms/${r.id}`)}>
             Room details <ArrowUpRight size={14} />
@@ -312,11 +337,11 @@ export default function Rooms() {
           </span>
           <div className="legend compact-legend">
             <span>
-              <i style={{ background: "#35b8ba" }} />
+              <i style={{ background: "#25976a" }} />
               Available
             </span>
             <span>
-              <i style={{ background: "#33aa7b" }} />
+              <i style={{ background: "#4f76bc" }} />
               Occupied
             </span>
             <span>
@@ -332,7 +357,7 @@ export default function Rooms() {
           />
         ) : view === "grid" ? (
           <div className="room-grid">
-            {filtered.slice((page - 1) * 9, page * 9).map(roomCard)}
+            {filtered.slice((page - 1) * 9, page * 9).map((r) => roomCard(r))}
           </div>
         ) : (
           <div className="table-wrap">
@@ -439,7 +464,7 @@ export default function Rooms() {
               </div>
             </div>
             <p>{selected.facilities.join(" · ")}</p>
-            {roomCard(selected)}
+            {roomCard(selected, true)}
             <div className="button-row">
               <Button onClick={() => open({ kind: "room", id: selected.id })}>
                 <Pencil size={16} /> Edit room

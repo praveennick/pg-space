@@ -239,75 +239,84 @@ export default function Operations() {
         <div className="operation-grid">
           {s.tickets
             .filter((t) => filter === "All" || t.status === filter)
-            .map((t) => (
-              <section className="panel operation-card" key={t.id}>
-                <div className="operation-top">
-                  <span className="metric-icon rose">
-                    <Wrench size={21} />
-                  </span>
-                  <Badge
-                    status={
-                      t.priority === "Urgent" || t.priority === "High"
-                        ? "Overdue"
-                        : "Reserved"
-                    }
-                  >
-                    {t.priority}
-                  </Badge>
-                </div>
-                <small className="muted">
-                  REQUEST #{t.id.slice(0, 6).toUpperCase()} · {t.category}
-                </small>
-                <h3>{t.description}</h3>
-                <p>
-                  Room {s.rooms.find((r) => r.id === t.roomId)?.number}
-                  {t.bedId &&
-                    ` · Bed ${s.beds.find((b) => b.id === t.bedId)?.label}`}
-                </p>
-                <div className="button-row">
-                  <Badge status={t.status === "Resolved" ? "Paid" : "Reserved"}>
-                    {t.status}
-                  </Badge>
-                  {t.block && (
-                    <Badge status="Maintenance">
-                      Bed cannot be booked until fixed
-                    </Badge>
-                  )}
-                </div>
-                {t.resolution && <p>{t.resolution}</p>}
-                <div className="button-row">
-                  {t.status === "Open" && (
-                    <Button
-                      variant="outline"
-                      disabled={busy}
-                      onClick={() =>
-                        run(() => service.ticketStatus(t.id, "In Progress", ""))
-                      }
-                    >
-                      Start work
-                    </Button>
-                  )}
-                  {["Open", "In Progress"].includes(t.status) && (
-                    <Button onClick={() => setResolve(t.id)}>
-                      Mark as fixed
-                    </Button>
-                  )}
-                  {t.status === "Resolved" && (
-                    <Button
-                      variant="outline"
-                      disabled={busy}
-                      onClick={() =>
-                        run(() =>
-                          service.ticketStatus(t.id, "Closed", t.resolution),
-                        )
-                      }
-                    >
-                      Close request
-                    </Button>
-                  )}
-                </div>
-              </section>
-            ))}
+            .map((t) => {
+              const closed = t.status === "Closed";
+              const priorityStatus =
+                closed || t.status === "Resolved"
+                  ? "Neutral"
+                  : t.priority === "Urgent" || t.priority === "High"
+                    ? "Overdue"
+                    : "Reserved";
+              const ticketStatus = closed
+                ? "Closed"
+                : t.status === "Resolved"
+                  ? "Paid"
+                  : "Reserved";
+
+              return (
+                <section className="panel operation-card" key={t.id}>
+                  <div className="operation-top">
+                    <span className="metric-icon rose">
+                      <Wrench size={21} />
+                    </span>
+                    {!closed && (
+                      <Badge status={priorityStatus}>{t.priority}</Badge>
+                    )}
+                  </div>
+                  <small className="muted">
+                    REQUEST #{t.id.slice(0, 6).toUpperCase()} · {t.category}
+                  </small>
+                  <h3>{t.description}</h3>
+                  <p>
+                    Room {s.rooms.find((r) => r.id === t.roomId)?.number}
+                    {t.bedId &&
+                      ` · Bed ${s.beds.find((b) => b.id === t.bedId)?.label}`}
+                  </p>
+                  <div className="button-row">
+                    <Badge status={ticketStatus}>{t.status}</Badge>
+                    {!closed && t.block && (
+                      <Badge status="Maintenance">
+                        Bed cannot be booked until fixed
+                      </Badge>
+                    )}
+                  </div>
+                  {t.resolution && <p>{t.resolution}</p>}
+                  <div className="button-row">
+                    {t.status === "Open" && (
+                      <Button
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() =>
+                          run(() =>
+                            service.ticketStatus(t.id, "In Progress", ""),
+                          )
+                        }
+                      >
+                        Start work
+                      </Button>
+                    )}
+                    {["Open", "In Progress"].includes(t.status) && (
+                      <Button onClick={() => setResolve(t.id)}>
+                        Mark as fixed
+                      </Button>
+                    )}
+                    {t.status === "Resolved" && (
+                      <Button
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() =>
+                          run(() =>
+                            service.ticketStatus(t.id, "Closed", t.resolution),
+                          )
+                        }
+                      >
+                        Close request
+                      </Button>
+                    )}
+                  </div>
+                </section>
+              );
+            })}
         </div>
       )}
       {isNot && (

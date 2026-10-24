@@ -421,6 +421,7 @@ export class ApplicationService {
       if (!t) throw new Error("Ticket missing");
       t.status = status;
       t.resolution = resolution;
+      if (["Resolved", "Closed"].includes(status)) t.block = false;
       log(s, "Repair request updated", `${t.description} · ${status}`);
     });
   }

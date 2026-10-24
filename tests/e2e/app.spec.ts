@@ -1,4 +1,18 @@
 ﻿import { test, expect } from "@playwright/test";
+test("bed status filters show only matching beds in room cards", async ({ page }) => {
+  for (const status of ["Occupied", "Available"]) {
+    await page.goto(`/app/rooms?status=${status}`);
+    const card = page.locator(".room-card").first();
+    await expect(card).toBeVisible();
+    const shownBeds = card.locator(".bed");
+    expect(await shownBeds.count()).toBeGreaterThan(0);
+    await expect(card.locator(`.bed:not(.${status.toLowerCase()})`)).toHaveCount(0);
+    await card.getByRole("button", { name: "Room details" }).click();
+    const detail = page.getByRole("dialog").locator(".room-card");
+    await expect(detail).toBeVisible();
+    expect(await detail.locator(".bed").count()).toBeGreaterThanOrEqual(await shownBeds.count());
+  }
+});
 test("room capacity, tenant check-in, payment and refresh persistence", async ({
   page,
 }) => {
@@ -37,6 +51,13 @@ test("room capacity, tenant check-in, payment and refresh persistence", async ({
   await expect(
     page.getByRole("button", { name: "Bed QA-501-D: Occupied" }),
   ).toBeVisible();
+  const occupiedBed = page.getByRole("button", { name: "Bed QA-501-D: Occupied" });
+  const freeBed = page.getByRole("button", { name: "Bed QA-501-A: Available" });
+  await expect(occupiedBed).toContainText("In use");
+  await expect(freeBed).toContainText("Free");
+  const occupiedColor = await occupiedBed.evaluate((bed) => getComputedStyle(bed).backgroundColor);
+  const freeColor = await freeBed.evaluate((bed) => getComputedStyle(bed).backgroundColor);
+  expect(occupiedColor).not.toBe(freeColor);
   await page.getByLabel("Edit room QA-501").click();
   await page.getByLabel("Number of beds *").fill("2");
   await page.getByRole("button", { name: "Save changes", exact: true }).click();

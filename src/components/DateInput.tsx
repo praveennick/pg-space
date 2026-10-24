@@ -11,6 +11,7 @@ type Props = {
   disabled?: boolean;
   max?: string;
   min?: string;
+  invalid?: boolean;
 };
 
 export function DateInput({
@@ -22,6 +23,7 @@ export function DateInput({
   disabled,
   max,
   min,
+  invalid,
 }: Props) {
   const [draftState, setDraft] = useState({
     source: value,
@@ -39,6 +41,7 @@ export function DateInput({
         ref={textInput}
         id={id}
         aria-label={label}
+        aria-invalid={invalid || undefined}
         type="text"
         inputMode="numeric"
         autoComplete="off"
