@@ -16,7 +16,10 @@ import { Button, Badge, Empty, Modal } from "../components/ui";
 import { rentStatusLabel } from "../components/labels";
 import { TenantAvatar } from "../components/TenantPhoto";
 import { WhatsAppReminder } from "../components/WhatsAppReminder";
+import { useAccess } from "../auth/access";
 export default function Tenants() {
+  const { role } = useAccess();
+  const staff = role === "staff";
   const { s, open } = useApp(),
     { id } = useParams(),
     navigate = useNavigate(),
@@ -47,9 +50,9 @@ export default function Tenants() {
           <h1>Your residents</h1>
           <p>See who lives here, their bed, rent, and contact details.</p>
         </div>
-        <Button onClick={() => open({ kind: "tenant" })}>
+        {!staff && <Button onClick={() => open({ kind: "tenant" })}>
           <Plus size={17} /> Add tenant
-        </Button>
+        </Button>}
       </div>
       <section className="panel">
         <div className="list-toolbar tenant-toolbar">
@@ -120,10 +123,10 @@ export default function Tenants() {
                           {occupancy ? rupees(occupancy.rent) : "—"}
                         </strong>
                       </span>
-                      <span>
+                      {!staff && <span>
                         <small>Rent due</small>
                         <strong>{rupees(pending)}</strong>
-                      </span>
+                      </span>}
                     </span>
                   </button>
                 );
@@ -139,7 +142,7 @@ export default function Tenants() {
                       "Room / Bed",
                       "Check-in",
                       "Monthly rent",
-                      "Rent due",
+                      ...(!staff ? ["Rent due"] : []),
                       "Status",
                       "",
                     ].map((h, i) => (
@@ -178,12 +181,12 @@ export default function Tenants() {
                         <td data-label="Monthly rent">
                           {o ? rupees(o.rent) : "—"}
                         </td>
-                        <td
+                        {!staff && <td
                           data-label="Rent due"
                           className={pending ? "warning-text" : ""}
                         >
                           {rupees(pending)}
-                        </td>
+                        </td>}
                         <td data-label="Status">
                           <Badge status={o ? "Occupied" : "neutral"}>
                             {o ? "Active" : "Checked out"}
@@ -255,11 +258,11 @@ export default function Tenants() {
             <div className="tabs" aria-label="Resident profile sections">
               {[
                 "Overview",
-                "Payments",
+                ...(!staff ? ["Payments"] : []),
                 "Stay History",
                 "ID check",
                 "Complaints",
-                "Activity",
+                ...(!staff ? ["Activity"] : []),
               ].map((v) => (
                 <button
                   key={v}
@@ -273,7 +276,7 @@ export default function Tenants() {
             </div>
             {tab === "Overview" && (
               <>
-                <div className="detail-metrics">
+                {!staff && <div className="detail-metrics">
                   <div>
                     <small>Monthly rent</small>
                     <strong>{rupees(stay?.rent || 0)}</strong>
@@ -292,7 +295,7 @@ export default function Tenants() {
                       )}
                     </strong>
                   </div>
-                </div>
+                </div>}
                 <div className="info-grid">
                   <div>
                     <small>Email</small>
@@ -318,17 +321,17 @@ export default function Tenants() {
                   >
                     <Pencil size={15} /> Edit details
                   </Button>
-                  <WhatsAppReminder
+                  {!staff && <WhatsAppReminder
                     tenantId={tenant.id}
                     label="WhatsApp reminder"
                     className="reminder-inline"
-                  />
-                  <Button
+                  />}
+                  {!staff && <Button
                     variant="outline"
                     onClick={() => open({ kind: "deposit", id: tenant.id })}
                   >
                     <Wallet size={15} /> Deposit history
-                  </Button>
+                  </Button>}
                   {stay && (
                     <>
                       <Button

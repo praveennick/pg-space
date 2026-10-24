@@ -1,34 +1,148 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function owner(uid) {
-      return request.auth != null && request.auth.uid == uid;
+    function signedIn() {
+      return request.auth != null;
     }
 
-    match /accounts/{uid}/control/version {
-      allow read: if owner(uid);
-      allow create: if owner(uid)
+    function owner(accountUid) {
+      return signedIn() && request.auth.uid == accountUid;
+    }
+
+    function verifiedEmail() {
+      return signedIn() && request.auth.token.email is string
+        && request.auth.token.email_verified == true;
+    }
+
+    function memberPath() {
+      let email = request.auth.token.email.lower();
+      return /databases/$(database)/documents/emailAccess/$(email);
+    }
+
+    function hasRole(accountUid, role) {
+      return verifiedEmail()
+        && exists(memberPath())
+        && get(memberPath()).data.ownerUid == accountUid
+        && get(memberPath()).data.role == role;
+    }
+
+    function tenantId() {
+      return get(memberPath()).data.tenantId;
+    }
+
+    function superAdmin(accountUid) {
+      return owner(accountUid) || hasRole(accountUid, 'super_admin');
+    }
+
+    function manager(accountUid) {
+      return superAdmin(accountUid) || hasRole(accountUid, 'admin');
+    }
+
+    function worker(accountUid) {
+      return manager(accountUid) || hasRole(accountUid, 'staff');
+    }
+
+    function knownEntity(entity) {
+      return entity in [
+        'rooms', 'beds', 'tenants', 'occupancies', 'reservations',
+        'invoices', 'payments', 'allocations', 'deposits', 'expenses',
+        'tickets', 'notifications', 'audit', 'settings', 'quotations'
+      ];
+    }
+
+    function staffReadEntity(entity) {
+      return entity in [
+        'rooms', 'beds', 'tenants', 'occupancies',
+        'reservations', 'tickets', 'settings'
+      ];
+    }
+
+    function staffEditEntity(entity) {
+      return entity in [
+        'rooms', 'beds', 'tenants', 'occupancies',
+        'reservations', 'tickets'
+      ];
+    }
+
+    function tenantRecord(accountUid, entity) {
+      return hasRole(accountUid, 'tenant')
+        && entity in ['invoices', 'payments', 'occupancies']
+        && resource.data.tenantId == tenantId();
+    }
+
+    match /emailAccess/{email} {
+      function validAccess() {
+        let data = request.resource.data;
+        return data.keys().hasOnly(['email', 'ownerUid', 'role', 'tenantId', 'label', 'workspaceName'])
+          && data.keys().hasAll(['email', 'ownerUid', 'role', 'tenantId', 'label', 'workspaceName'])
+          && data.email == email && email == email.lower()
+          && data.ownerUid is string && data.ownerUid.size() > 0
+          && data.role in ['super_admin', 'admin', 'staff', 'tenant']
+          && data.tenantId is string && data.label is string && data.label.size() <= 100
+          && data.workspaceName is string && data.workspaceName.size() > 0
+          && ((data.role == 'tenant' && data.tenantId.size() > 0
+              && exists(/databases/$(database)/documents/accounts/$(data.ownerUid)/records/tenants/items/$(data.tenantId)))
+            || (data.role != 'tenant' && data.tenantId == ''));
+      }
+      allow get: if (verifiedEmail() && email == request.auth.token.email.lower())
+        || superAdmin(resource.data.ownerUid);
+      allow list: if superAdmin(resource.data.ownerUid);
+      allow create: if validAccess() && superAdmin(request.resource.data.ownerUid);
+      allow update: if validAccess()
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && superAdmin(resource.data.ownerUid);
+      allow delete: if superAdmin(resource.data.ownerUid);
+    }
+
+    // Old UID-based assignments are no longer used for authorization.
+    match /accounts/{accountUid}/members/{memberUid} {
+      allow read, delete: if superAdmin(accountUid);
+    }
+
+    match /accounts/{accountUid}/control/version {
+      allow read: if worker(accountUid);
+      allow create: if worker(accountUid)
         && request.resource.data.keys().hasOnly(['number'])
         && request.resource.data.number == 1;
-      allow update: if owner(uid)
+      allow update: if worker(accountUid)
         && request.resource.data.keys().hasOnly(['number'])
         && request.resource.data.number == resource.data.number + 1;
     }
 
-    match /accounts/{uid}/records/{entity}/items/{recordId} {
-      function knownEntity() {
-        return entity in [
-          'rooms', 'beds', 'tenants', 'occupancies', 'reservations',
-          'invoices', 'payments', 'allocations', 'deposits', 'expenses',
-          'tickets', 'notifications', 'audit', 'settings', 'quotations'
-        ];
-      }
-      allow read: if owner(uid) && knownEntity();
-      allow create, update: if owner(uid)
-        && knownEntity()
-        && request.resource.data.id == recordId;
-      allow delete: if owner(uid)
-        && knownEntity();
+    match /accounts/{accountUid}/portal/{residentId} {
+      allow get: if worker(accountUid)
+        || (hasRole(accountUid, 'tenant') && residentId == tenantId());
+      allow list: if manager(accountUid);
+      allow create, update: if worker(accountUid)
+        && request.resource.data.keys().hasOnly(['name', 'phone', 'email', 'occupation'])
+        && request.resource.data.keys().hasAll(['name', 'phone', 'email', 'occupation'])
+        && request.resource.data.name is string
+        && request.resource.data.phone is string
+        && request.resource.data.email is string
+        && request.resource.data.occupation is string;
+      allow delete: if superAdmin(accountUid);
+    }
+
+    match /accounts/{accountUid}/records/{entity}/items/{recordId} {
+      allow get: if knownEntity(entity)
+        && (manager(accountUid)
+          || (hasRole(accountUid, 'staff') && staffReadEntity(entity))
+          || tenantRecord(accountUid, entity));
+      allow list: if knownEntity(entity)
+        && (manager(accountUid)
+          || (hasRole(accountUid, 'staff') && staffReadEntity(entity))
+          || (entity in ['invoices', 'payments', 'occupancies']
+            && tenantRecord(accountUid, entity)));
+      allow create: if knownEntity(entity)
+        && request.resource.data.id == recordId
+        && (manager(accountUid)
+          || (hasRole(accountUid, 'staff')
+            && (staffEditEntity(entity) || entity in ['audit', 'notifications'])));
+      allow update: if knownEntity(entity)
+        && request.resource.data.id == recordId
+        && (manager(accountUid)
+          || (hasRole(accountUid, 'staff') && staffEditEntity(entity)));
+      allow delete: if knownEntity(entity) && superAdmin(accountUid);
     }
 
     match /{document=**} {

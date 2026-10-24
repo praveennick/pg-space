@@ -18,9 +18,11 @@ import { validateBackup } from "../services/application";
 import { download } from "../services/export";
 import { paise, type Snapshot } from "../domain/models";
 import { Button, Field, Modal, SectionTitle } from "../components/ui";
+import { useAccess } from "../auth/access";
 export default function Settings() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { role } = useAccess();
   const { s } = useApp(),
     settings = s.settings[0],
     [busy, setBusy] = useState(false),
@@ -247,14 +249,14 @@ export default function Settings() {
           >
             <Download size={16} /> Download backup
           </Button>
-          <Button
+          {role === "super_admin" && <Button
             variant="outline"
             disabled={busy}
             onClick={() => file.current?.click()}
           >
             <Upload size={16} /> Import backup
-          </Button>
-          {!firebaseMode && (
+          </Button>}
+          {!firebaseMode && role === "super_admin" && (
             <Button
               variant="outline"
               disabled={busy}
@@ -263,13 +265,13 @@ export default function Settings() {
               <RotateCcw size={16} /> Reset demo data
             </Button>
           )}
-          <Button
+          {role === "super_admin" && <Button
             variant="danger"
             disabled={busy}
             onClick={() => setClear(true)}
           >
             <RotateCcw size={16} /> Clear all records
-          </Button>
+          </Button>}
           <input
             ref={file}
             hidden
@@ -323,7 +325,7 @@ export default function Settings() {
           </div>
         </Modal>
       )}
-      {clear && (
+      {clear && role === "super_admin" && (
         <Modal
           title="Clear all records?"
           description={
@@ -341,7 +343,7 @@ export default function Settings() {
             <p>
               This permanently removes rooms, beds, residents, rent bills,
               payments, quotations, and other PG records. Property settings
-              return to the default “My PG”. Your sign-in account remains.
+              return to the default “My PG”. Sign-in accounts and team access remain.
               Download a backup first if you may need these records later.
             </p>
             <Field label="Type CLEAR to confirm">
@@ -378,7 +380,7 @@ export default function Settings() {
           </div>
         </Modal>
       )}
-      {backup && (
+      {backup && role === "super_admin" && (
         <Modal title="Use this backup?" onClose={() => setBackup(null)}>
           <div className="dialog-body">
             <ShieldCheck className="accent" size={32} />

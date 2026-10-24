@@ -15,6 +15,8 @@ Open the localhost URL printed by Vite. On Windows, if PowerShell blocks `npm.ps
 
 To use the configured Firebase project, complete the [Firebase setup steps](FIREBASE_INTEGRATION.md) and run `npm run dev:firebase`. Local demo records are never uploaded automatically.
 
+Use [User access setup](USER_ACCESS.md) to add Super admins, Admins, Staff and Tenants by email. Added users set their own password and verify their email in the app.
+
 To open the demo from a phone on the same Wi-Fi network, start Vite with `npm run dev -- --host 0.0.0.0` and visit the computer's LAN address (for example, `http://192.168.1.17:5173/app/dashboard`). The app supports browsers that omit `crypto.randomUUID()` on LAN HTTP. Browser storage belongs to that phone and URL, so records saved on your computer's `localhost` are not shared with the phone. LAN HTTP is unencrypted; use fictional demo data and an HTTPS deployment for real use.
 
 ```sh

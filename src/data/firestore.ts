@@ -13,19 +13,30 @@ import {
   type Entities,
   type EntityName,
   type Snapshot,
+  type Tenant,
 } from "../domain/models";
 import type { DataStore, Repository } from "./contracts";
 import { cloudDb } from "./firebase";
 import { emptyPropertyData } from "./seed";
+import type { Role } from "../auth/access";
 
 const db = () => {
   if (!cloudDb) throw new Error("Firebase is not configured.");
   return cloudDb;
 };
 
+const publicProfile = (tenant: Tenant) => ({
+  name: tenant.name,
+  phone: tenant.phone,
+  email: tenant.email,
+  occupation: tenant.occupation,
+});
+
 // Each Firebase account owns its own records. No local data is uploaded here.
 export class FirestoreStore implements DataStore {
-  private uid = "";
+  private ownerUid = "";
+  private role: Role = "super_admin";
+  private sessionRevision = 0;
   repositories: DataStore["repositories"];
 
   constructor() {
@@ -47,13 +58,17 @@ export class FirestoreStore implements DataStore {
     ) as DataStore["repositories"];
   }
 
-  setUser(uid: string) {
-    this.uid = uid;
+  setSession(ownerUid: string, role: Role) {
+    if (ownerUid !== this.ownerUid || role !== this.role)
+      this.sessionRevision++;
+    this.ownerUid = ownerUid;
+    this.role = role;
   }
 
   private owner() {
-    if (!this.uid) throw new Error("Sign in before opening cloud records.");
-    return this.uid;
+    if (!this.ownerUid)
+      throw new Error("Sign in before opening cloud records.");
+    return this.ownerUid;
   }
 
   private records(name: EntityName) {
@@ -65,14 +80,31 @@ export class FirestoreStore implements DataStore {
   }
 
   async read(): Promise<Snapshot> {
+    if (this.role === "tenant")
+      throw new Error("Tenant accounts use the private resident portal.");
     const owner = this.owner();
+    const sessionRevision = this.sessionRevision;
+    const readable =
+      this.role === "staff"
+        ? names.filter((name) =>
+            [
+              "rooms",
+              "beds",
+              "tenants",
+              "occupancies",
+              "reservations",
+              "tickets",
+              "settings",
+            ].includes(name),
+          )
+        : names;
     const snapshots = await Promise.all(
-      names.map((name) => getDocs(this.records(name))),
+      readable.map((name) => getDocs(this.records(name))),
     );
-    if (owner !== this.uid)
+    if (owner !== this.ownerUid || sessionRevision !== this.sessionRevision)
       throw new Error("The signed-in account changed. Please reload.");
     const state = emptySnapshot();
-    names.forEach((name, index) => {
+    readable.forEach((name, index) => {
       (state[name] as unknown[]) = snapshots[index].docs.map((item) =>
         item.data(),
       );
@@ -88,6 +120,7 @@ export class FirestoreStore implements DataStore {
 
   private async change<T>(work: (state: Snapshot) => T): Promise<T> {
     const owner = this.owner();
+    const sessionRevision = this.sessionRevision;
     for (let attempt = 0; attempt < 4; attempt++) {
       const before = await getDoc(this.version());
       const version = Number(before.data()?.number || 0);
@@ -103,13 +136,23 @@ export class FirestoreStore implements DataStore {
         );
         const next = new Map(state[name].map((item) => [item.id, item]));
         for (const [id, item] of next)
-          if (JSON.stringify(item) !== old.get(id))
+          if (JSON.stringify(item) !== old.get(id)) {
             writes.push({
               path: doc(this.records(name), id),
               value: JSON.parse(JSON.stringify(item)) as object,
             });
+            if (name === "tenants")
+              writes.push({
+                path: doc(db(), "accounts", owner, "portal", id),
+                value: publicProfile(item as Tenant),
+              });
+          }
         for (const id of old.keys())
-          if (!next.has(id)) writes.push({ path: doc(this.records(name), id) });
+          if (!next.has(id)) {
+            writes.push({ path: doc(this.records(name), id) });
+            if (name === "tenants")
+              writes.push({ path: doc(db(), "accounts", owner, "portal", id) });
+          }
       }
       if (writes.length > 450)
         throw new Error(
@@ -120,7 +163,8 @@ export class FirestoreStore implements DataStore {
         await runTransaction(db(), async (transaction) => {
           const current = await transaction.get(this.version());
           if (
-            owner !== this.uid ||
+            owner !== this.ownerUid ||
+            sessionRevision !== this.sessionRevision ||
             Number(current.data()?.number || 0) !== version
           )
             throw new Error("Cloud records changed while saving.");
@@ -144,6 +188,8 @@ export class FirestoreStore implements DataStore {
   }
 
   replace(state: Snapshot): Promise<void> {
+    if (this.role !== "super_admin")
+      throw new Error("Only the super admin can replace all PG records.");
     return this.change((current) => {
       for (const name of names)
         (current[name] as unknown[]) = structuredClone(state[name]);
@@ -151,11 +197,18 @@ export class FirestoreStore implements DataStore {
   }
 
   async clearAllRecords(): Promise<void> {
+    if (this.role !== "super_admin")
+      throw new Error("Only the super admin can clear PG records.");
     const owner = this.owner();
+    const sessionRevision = this.sessionRevision;
     const snapshots = await Promise.all(
       names.map((name) => getDocs(this.records(name))),
     );
-    if (owner !== this.uid)
+    const [portal, members] = await Promise.all([
+      getDocs(collection(db(), "accounts", owner, "portal")),
+      getDocs(collection(db(), "accounts", owner, "members")),
+    ]);
+    if (owner !== this.ownerUid || sessionRevision !== this.sessionRevision)
       throw new Error("The signed-in account changed. Please reload.");
 
     // Keep the property settings document until the final write so the app
@@ -165,11 +218,13 @@ export class FirestoreStore implements DataStore {
         .filter((item) => names[index] !== "settings" || item.id !== "property")
         .map((item) => item.ref),
     );
+    records.push(...portal.docs.map((item) => item.ref));
+    records.push(...members.docs.map((item) => item.ref));
     const version = this.version();
     const apply = async (items: DocumentReference[], finish = false) => {
       await runTransaction(db(), async (transaction) => {
         const current = await transaction.get(version);
-        if (owner !== this.uid)
+        if (owner !== this.ownerUid || sessionRevision !== this.sessionRevision)
           throw new Error("The signed-in account changed. Please reload.");
         for (const item of items) transaction.delete(item);
         if (finish) {

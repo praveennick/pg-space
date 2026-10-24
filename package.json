@@ -17,6 +17,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:rules": "node scripts/test-access-rules.mjs",
     "test:e2e": "playwright test",
     "typecheck": "tsc -b"
   },

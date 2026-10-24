@@ -38,6 +38,7 @@ import { firebaseMode } from "../data/firebase";
 import { DateInput } from "./DateInput";
 import { displayDate, displayMonth } from "../domain/dates";
 import { getVerificationErrors } from "../domain/verification";
+import { useAccess } from "../auth/access";
 export type EditorState = {
   kind: string;
   id?: string;
@@ -913,6 +914,8 @@ function TenantEditor({
   );
 }
 function BedDetails({ id, onClose }: { id: string; onClose: () => void }) {
+  const { role } = useAccess();
+  const staff = role === "staff";
   const { s, open } = useApp(),
     navigate = useNavigate(),
     bed = s.beds.find((b) => b.id === id)!,
@@ -957,7 +960,7 @@ function BedDetails({ id, onClose }: { id: string; onClose: () => void }) {
             <p>
               {tenant.phone} · Since {displayDate(stay?.start)}
             </p>
-            <p>
+            {!staff && <p>
               Outstanding:{" "}
               <strong>
                 {rupees(
@@ -966,7 +969,7 @@ function BedDetails({ id, onClose }: { id: string; onClose: () => void }) {
                     .reduce((v, i) => v + balance(s, i), 0),
                 )}
               </strong>
-            </p>
+            </p>}
             <div className="button-row">
               <Button
                 onClick={() => {
@@ -982,7 +985,7 @@ function BedDetails({ id, onClose }: { id: string; onClose: () => void }) {
               >
                 Transfer
               </Button>
-              <Button
+              {!staff && <Button
                 variant="outline"
                 onClick={() =>
                   open({
@@ -994,7 +997,7 @@ function BedDetails({ id, onClose }: { id: string; onClose: () => void }) {
                 }
               >
                 Collect rent
-              </Button>
+              </Button>}
               <Button
                 variant="danger"
                 onClick={() => open({ kind: "checkout", id: tenant.id })}
@@ -1006,9 +1009,9 @@ function BedDetails({ id, onClose }: { id: string; onClose: () => void }) {
         )}
         {status === "Available" && (
           <div className="button-row">
-            <Button onClick={() => open({ kind: "tenant", bedId: id })}>
+            {!staff && <Button onClick={() => open({ kind: "tenant", bedId: id })}>
               <UserPlus size={15} /> Assign tenant
-            </Button>
+            </Button>}
             <Button
               variant="outline"
               onClick={() => open({ kind: "reservation", bedId: id })}

@@ -1,5 +1,12 @@
 ﻿import { AppContext } from "./hooks/useApp";
-import { useState, useEffect, useRef, lazy, Suspense, type ReactNode } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  lazy,
+  Suspense,
+  type ReactNode,
+} from "react";
 import {
   BrowserRouter,
   NavLink,
@@ -10,7 +17,8 @@ import {
   useNavigate,
 } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "sonner";
+import { Toaster, toast } from "sonner";
+import { doc, getDoc } from "firebase/firestore";
 import {
   Building2,
   LayoutDashboard,
@@ -38,14 +46,25 @@ import {
   FileText,
   LogOut,
   MessageSquareText,
+  ShieldCheck,
 } from "lucide-react";
-import { onAuthStateChanged, signOut, type User } from "firebase/auth";
+import { onIdTokenChanged, signOut, type User } from "firebase/auth";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
 import { useData } from "./hooks/useData";
 import { firebaseStore, store } from "./data";
 import { initialize } from "./data/seed";
-import { cloudAuth, firebaseMode } from "./data/firebase";
+import { cloudAuth, cloudDb, firebaseMode } from "./data/firebase";
 import { FirebaseSignIn } from "./components/FirebaseSignIn";
+import { VerifyEmail } from "./components/VerifyEmail";
+import {
+  AccessContext,
+  canAccessPage,
+  canOpenEditor,
+  landingPage,
+  useAccess,
+  type WorkspaceAccess,
+} from "./auth/access";
+import { accessErrorMessage, watchEmailAccess } from "./auth/members";
 
 import { Button, Modal } from "./components/ui";
 import { Editors, type EditorState } from "./components/Editors";
@@ -57,6 +76,8 @@ const RemindersPage = lazy(() => import("./pages/Reminders"));
 const Operations = lazy(() => import("./pages/Operations"));
 const SettingsPage = lazy(() => import("./pages/Settings"));
 const Quotations = lazy(() => import("./pages/Quotations"));
+const Team = lazy(() => import("./pages/Team"));
+const TenantPortal = lazy(() => import("./pages/TenantPortal"));
 const queryClient = new QueryClient();
 const nav = [
   ["dashboard", "Overview", LayoutDashboard],
@@ -72,6 +93,7 @@ const nav = [
   ["reports", "Reports", ChartNoAxesCombined],
   ["activity", "Changes made", History],
   ["settings", "Settings", Settings],
+  ["team", "Team & access", ShieldCheck],
 ] as const;
 function AppMenu({
   label,
@@ -92,6 +114,7 @@ function AppMenu({
   );
 }
 function Shell() {
+  const access = useAccess();
   const { data: s, error } = useData(),
     location = useLocation(),
     navigate = useNavigate();
@@ -176,6 +199,7 @@ function Shell() {
         <div className="skeleton" />
       </div>
     );
+  const visibleNav = nav.filter(([path]) => canAccessPage(access.role, path));
   const page = location.pathname.split("/")[2] || "dashboard",
     title = nav.find((n) => n[0] === page)?.[1] || "Overview",
     unread = s.notifications.filter((n) => !n.read).length;
@@ -226,7 +250,15 @@ function Shell() {
       </div>
     );
   return (
-    <AppContext.Provider value={{ s, open: setEditor }}>
+    <AppContext.Provider
+      value={{
+        s,
+        open: (next) => {
+          if (canOpenEditor(access.role, next)) setEditor(next);
+          else toast.error("Your role cannot make this change.");
+        },
+      }}
+    >
       <div
         className={`app ${collapsed ? "compact" : ""} ${mobile ? "menu-open" : ""}`}
       >
@@ -265,7 +297,8 @@ function Shell() {
             className="property-switch"
             onClick={() => {
               setMobile(false);
-              navigate("/app/settings");
+              if (canAccessPage(access.role, "settings"))
+                navigate("/app/settings");
             }}
           >
             <span className="property-icon">
@@ -273,13 +306,15 @@ function Shell() {
             </span>
             <span>
               <strong>{s.settings[0].name}</strong>
-              <small>Bengaluru · 1 property</small>
+              <small title={s.settings[0].address.trim() || undefined}>
+                {s.settings[0].address.trim() || "Address not added"}
+              </small>
             </span>
             <ChevronDown size={15} />
           </button>
           <div className="nav-label">WORKSPACE</div>
           <nav>
-            {nav.map(([path, label, Icon]) => (
+            {visibleNav.map(([path, label, Icon]) => (
               <NavLink
                 key={path}
                 title={label}
@@ -311,7 +346,13 @@ function Shell() {
             <button className="profile" onClick={() => setHelp(true)}>
               <span className="avatar">PK</span>
               <span>
-                <strong>Property Manager</strong>
+                <strong>
+                  {access.role === "super_admin"
+                    ? "Super admin"
+                    : access.role === "admin"
+                      ? "Admin"
+                      : "Staff"}
+                </strong>
                 <small>
                   {firebaseMode ? cloudAuth?.currentUser?.email : "PG demo"}
                 </small>
@@ -356,7 +397,9 @@ function Shell() {
               <button
                 ref={mobileSearchToggle}
                 className="icon-button mobile-search-toggle"
-                aria-label={mobileSearch ? "Close search" : "Search residents and rooms"}
+                aria-label={
+                  mobileSearch ? "Close search" : "Search residents and rooms"
+                }
                 aria-expanded={mobileSearch}
                 aria-controls="mobile-search-panel"
                 onClick={() => {
@@ -396,14 +439,16 @@ function Shell() {
                   </Dropdown.Item>
                 ))}
               </AppMenu>
-              <button
-                className="icon-button notification-button"
-                aria-label="Open notifications"
-                onClick={() => navigate("/app/notifications")}
-              >
-                <Bell size={19} />
-                {unread > 0 && <i />}
-              </button>
+              {canAccessPage(access.role, "notifications") && (
+                <button
+                  className="icon-button notification-button"
+                  aria-label="Open notifications"
+                  onClick={() => navigate("/app/notifications")}
+                >
+                  <Bell size={19} />
+                  {unread > 0 && <i />}
+                </button>
+              )}
               <span className="header-separator" />
               <AppMenu
                 label={
@@ -419,14 +464,16 @@ function Shell() {
                   ["expense", "Add expense"],
                   ["reservation", "New reservation"],
                   ["ticket", "Repair request"],
-                ].map(([kind, label]) => (
-                  <Dropdown.Item
-                    key={kind}
-                    onSelect={() => setEditor({ kind })}
-                  >
-                    {label}
-                  </Dropdown.Item>
-                ))}
+                ]
+                  .filter(([kind]) => canOpenEditor(access.role, { kind }))
+                  .map(([kind, label]) => (
+                    <Dropdown.Item
+                      key={kind}
+                      onSelect={() => setEditor({ kind })}
+                    >
+                      {label}
+                    </Dropdown.Item>
+                  ))}
               </AppMenu>
             </div>
             {mobileSearch && (
@@ -461,26 +508,127 @@ function Shell() {
               }
             >
               <Routes>
-                <Route path="dashboard" element={<Dashboard />} />
-                <Route path="rooms/:id?" element={<Rooms />} />
-                <Route path="tenants/:id?" element={<Tenants />} />
-                <Route path="payments" element={<Finance />} />
-                <Route path="reminders" element={<RemindersPage />} />
-                <Route path="quotations" element={<Quotations />} />
-                <Route path="expenses" element={<Finance />} />
-                <Route path="reports" element={<Dashboard reports />} />
-                <Route path="settings" element={<SettingsPage />} />
+                <Route
+                  path="dashboard"
+                  element={
+                    canAccessPage(access.role, "dashboard") ? (
+                      <Dashboard />
+                    ) : (
+                      <Navigate to={landingPage(access.role)} replace />
+                    )
+                  }
+                />
+                <Route
+                  path="rooms/:id?"
+                  element={
+                    canAccessPage(access.role, "rooms") ? (
+                      <Rooms />
+                    ) : (
+                      <Navigate to={landingPage(access.role)} replace />
+                    )
+                  }
+                />
+                <Route
+                  path="tenants/:id?"
+                  element={
+                    canAccessPage(access.role, "tenants") ? (
+                      <Tenants />
+                    ) : (
+                      <Navigate to={landingPage(access.role)} replace />
+                    )
+                  }
+                />
+                <Route
+                  path="payments"
+                  element={
+                    canAccessPage(access.role, "payments") ? (
+                      <Finance />
+                    ) : (
+                      <Navigate to={landingPage(access.role)} replace />
+                    )
+                  }
+                />
+                <Route
+                  path="reminders"
+                  element={
+                    canAccessPage(access.role, "reminders") ? (
+                      <RemindersPage />
+                    ) : (
+                      <Navigate to={landingPage(access.role)} replace />
+                    )
+                  }
+                />
+                <Route
+                  path="quotations"
+                  element={
+                    canAccessPage(access.role, "quotations") ? (
+                      <Quotations />
+                    ) : (
+                      <Navigate to={landingPage(access.role)} replace />
+                    )
+                  }
+                />
+                <Route
+                  path="expenses"
+                  element={
+                    canAccessPage(access.role, "expenses") ? (
+                      <Finance />
+                    ) : (
+                      <Navigate to={landingPage(access.role)} replace />
+                    )
+                  }
+                />
+                <Route
+                  path="reports"
+                  element={
+                    canAccessPage(access.role, "reports") ? (
+                      <Dashboard reports />
+                    ) : (
+                      <Navigate to={landingPage(access.role)} replace />
+                    )
+                  }
+                />
+                <Route
+                  path="settings"
+                  element={
+                    canAccessPage(access.role, "settings") ? (
+                      <SettingsPage />
+                    ) : (
+                      <Navigate to={landingPage(access.role)} replace />
+                    )
+                  }
+                />
+                <Route
+                  path="team"
+                  element={
+                    canAccessPage(access.role, "team") ? (
+                      <Team />
+                    ) : (
+                      <Navigate to={landingPage(access.role)} replace />
+                    )
+                  }
+                />
                 {[
                   "reservations",
                   "maintenance",
                   "notifications",
                   "activity",
                 ].map((p) => (
-                  <Route key={p} path={p} element={<Operations key={p} />} />
+                  <Route
+                    key={p}
+                    path={p}
+                    element={
+                      canAccessPage(access.role, p) ? (
+                        <Operations key={p} />
+                      ) : (
+                        <Navigate to={landingPage(access.role)} replace />
+                      )
+                    }
+                  />
                 ))}
                 <Route
                   path="*"
-                  element={<Navigate to="/app/dashboard" replace />}
+                  element={<Navigate to={landingPage(access.role)} replace />}
                 />
               </Routes>
             </Suspense>
@@ -496,7 +644,7 @@ function Shell() {
           </main>
         </div>
         <nav className="bottom-nav">
-          {nav.slice(0, 3).map(([p, l, I]) => (
+          {visibleNav.slice(0, 3).map(([p, l, I]) => (
             <NavLink key={p} to={`/app/${p}`}>
               <I size={20} />
               <span>
@@ -504,16 +652,25 @@ function Shell() {
               </span>
             </NavLink>
           ))}
-          <NavLink to="/app/payments">
-            <Wallet size={20} />
-            <span>Payments</span>
-          </NavLink>
+          {canAccessPage(access.role, "payments") ? (
+            <NavLink to="/app/payments">
+              <Wallet size={20} />
+              <span>Payments</span>
+            </NavLink>
+          ) : (
+            <NavLink to="/app/maintenance">
+              <Wrench size={20} />
+              <span>Repairs</span>
+            </NavLink>
+          )}
           <button onClick={() => setMobile(true)}>
             <Menu size={20} />
             <span>More</span>
           </button>
         </nav>
-        {editor && <Editors editor={editor} onClose={() => setEditor(null)} />}
+        {editor && canOpenEditor(access.role, editor) && (
+          <Editors editor={editor} onClose={() => setEditor(null)} />
+        )}
         {help && (
           <Modal title="How your data is saved" onClose={() => setHelp(false)}>
             <div className="dialog-body">
@@ -536,14 +693,16 @@ function Shell() {
                   </p>
                 </>
               )}
-              <Button
-                onClick={() => {
-                  setHelp(false);
-                  navigate("/app/settings");
-                }}
-              >
-                Open backup settings
-              </Button>
+              {canAccessPage(access.role, "settings") && (
+                <Button
+                  onClick={() => {
+                    setHelp(false);
+                    navigate("/app/settings");
+                  }}
+                >
+                  Open backup settings
+                </Button>
+              )}
             </div>
           </Modal>
         )}
@@ -552,6 +711,7 @@ function Shell() {
   );
 }
 function WorkspaceApp() {
+  const access = useAccess();
   const [ready, setReady] = useState(firebaseMode),
     [error, setError] = useState("");
   useEffect(() => {
@@ -570,10 +730,23 @@ function WorkspaceApp() {
           </div>
         ) : ready ? (
           <Routes>
-            <Route path="/app/*" element={<Shell />} />
+            {access.role === "tenant" ? (
+              <Route
+                path="/app/my-account"
+                element={
+                  <Suspense
+                    fallback={<div className="boot">Opening your account…</div>}
+                  >
+                    <TenantPortal />
+                  </Suspense>
+                }
+              />
+            ) : (
+              <Route path="/app/*" element={<Shell />} />
+            )}
             <Route
               path="*"
-              element={<Navigate to="/app/dashboard" replace />}
+              element={<Navigate to={landingPage(access.role)} replace />}
             />
           </Routes>
         ) : (
@@ -590,22 +763,153 @@ function WorkspaceApp() {
 }
 
 export default function App() {
-  const [user, setUser] = useState<User | null | undefined>(undefined);
+  const [authState, setAuthState] = useState<{
+    user: User | null;
+    revision: number;
+  }>();
+  const [resolution, setResolution] = useState<{
+    status: "loading" | "verify" | "denied" | "error" | "ready";
+    access?: WorkspaceAccess;
+    error?: string;
+  }>({ status: "loading" });
+  const [retry, setRetry] = useState(0);
   useEffect(() => {
     if (!cloudAuth) return;
-    return onAuthStateChanged(cloudAuth, (next) => {
-      firebaseStore?.setUser(next?.uid || "");
-      queryClient.clear();
-      setUser(next);
+    return onIdTokenChanged(cloudAuth, (user) => {
+      setResolution({ status: "loading" });
+      setAuthState((previous) => ({
+        user,
+        revision: (previous?.revision || 0) + 1,
+      }));
     });
   }, []);
-  if (!firebaseMode) return <WorkspaceApp />;
-  if (user === undefined)
+  useEffect(() => {
+    if (!firebaseMode || !authState || !cloudDb) return;
+    const { user } = authState;
+    queryClient.clear();
+    firebaseStore?.setSession("", "tenant");
+    if (!user) return;
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
+    const accept = (access: WorkspaceAccess | null) => {
+      if (!active) return;
+      queryClient.clear();
+      firebaseStore?.setSession(
+        access?.ownerUid || "",
+        access?.role || "tenant",
+      );
+      setResolution(
+        access ? { status: "ready", access } : { status: "denied" },
+      );
+    };
+    void getDoc(
+      doc(
+        cloudDb,
+        "accounts",
+        user.uid,
+        "records",
+        "settings",
+        "items",
+        "property",
+      ),
+    )
+      .then((snapshot) => {
+        if (!active) return;
+        if (snapshot.exists()) {
+          accept({ uid: user.uid, ownerUid: user.uid, role: "super_admin" });
+        } else if (!user.emailVerified) {
+          setResolution({ status: "verify" });
+        } else if (user.email) {
+          unsubscribe = watchEmailAccess(
+            user.uid,
+            user.email,
+            accept,
+            (error) => {
+              if (active) {
+                queryClient.clear();
+                firebaseStore?.setSession("", "tenant");
+                setResolution({
+                  status: "error",
+                  error: accessErrorMessage(error),
+                });
+              }
+            },
+          );
+        } else setResolution({ status: "denied" });
+      })
+      .catch((error) => {
+        if (active)
+          setResolution({ status: "error", error: accessErrorMessage(error) });
+      });
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
+  }, [authState, retry]);
+  if (!firebaseMode)
+    return (
+      <AccessContext.Provider
+        value={{ uid: "local", ownerUid: "local", role: "super_admin" }}
+      >
+        <WorkspaceApp />
+      </AccessContext.Provider>
+    );
+  if (!authState)
     return (
       <div className="boot">
         <Building2 size={36} />
         <h2>Checking your account…</h2>
       </div>
     );
-  return user ? <WorkspaceApp key={user.uid} /> : <FirebaseSignIn />;
+  const { user } = authState;
+  if (!user) return <FirebaseSignIn />;
+  if (
+    resolution.status === "loading" ||
+    (resolution.access && resolution.access.uid !== user.uid)
+  )
+    return (
+      <div className="boot">
+        <Building2 size={36} />
+        <h2>Checking workspace access…</h2>
+      </div>
+    );
+  if (resolution.status === "verify") return <VerifyEmail user={user} />;
+  const { access } = resolution;
+  if (!access)
+    return (
+      <main className="firebase-signin">
+        <div className="panel firebase-signin-card">
+          <h1>
+            {resolution.status === "error"
+              ? "Could not open your PG"
+              : "Access has not been added yet"}
+          </h1>
+          <p role="alert">
+            {resolution.error ||
+              `Ask your PG owner to add ${user.email} in Team & access. Then try again.`}
+          </p>
+          <Button
+            onClick={() => {
+              setResolution({ status: "loading" });
+              setRetry((value) => value + 1);
+            }}
+          >
+            Try again
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => cloudAuth && void signOut(cloudAuth)}
+          >
+            Sign out
+          </Button>
+        </div>
+      </main>
+    );
+  return (
+    <AccessContext.Provider value={access}>
+      <WorkspaceApp
+        key={`${access.uid}-${access.ownerUid}-${access.role}-${access.tenantId || ""}`}
+      />
+    </AccessContext.Provider>
+  );
 }

@@ -15,6 +15,7 @@ import { service } from "../data";
 import { activeReservation, balance } from "../domain/calculations";
 import { today, rupees } from "../domain/models";
 import { Button, Badge, Empty, Modal, Field } from "../components/ui";
+import { useAccess } from "../auth/access";
 const plainActivity = (value: string) =>
   value
     .replaceAll("Monthly billing generated", "Rent bills created")
@@ -28,6 +29,7 @@ const plainActivity = (value: string) =>
       "Old rent bills stay the same. Check the rent for the month of this bed change.",
     );
 export default function Operations() {
+  const { role } = useAccess();
   const { s, open } = useApp(),
     page = useLocation().pathname.split("/").at(-1),
     [filter, setFilter] = useState(page === "maintenance" ? "Open" : "All"),
@@ -213,7 +215,7 @@ export default function Operations() {
                       >
                         Confirm
                       </Button>
-                    ) : (
+                    ) : role !== "staff" ? (
                       <Button
                         onClick={() =>
                           open({
@@ -225,7 +227,7 @@ export default function Operations() {
                       >
                         Check in
                       </Button>
-                    )}
+                    ) : null}
                     <Button variant="ghost" onClick={() => setCancel(r.id)}>
                       Cancel booking
                     </Button>
