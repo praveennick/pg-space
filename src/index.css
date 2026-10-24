@@ -504,11 +504,12 @@ textarea {
 .sidebar {
   position: fixed;
   inset: 0 auto 0 0;
+  height: 100dvh;
   width: 234px;
   background: var(--sidebar);
   border-right: 1px solid var(--border);
   z-index: 30;
-  padding: 28px 17px 0;
+  padding: 28px 17px 12px;
   display: flex;
   flex-direction: column;
   transition: width 0.2s;
@@ -604,6 +605,11 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 5px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  overscroll-behavior: contain;
 }
 
 .nav-item {
@@ -640,7 +646,7 @@ textarea {
   width: 3px;
   border-radius: 2px;
   position: absolute;
-  left: -17px;
+  left: 0;
   background: var(--accent);
 }
 
@@ -669,8 +675,8 @@ textarea {
 }
 
 .sidebar-bottom {
-  margin-top: auto;
-  padding-top: 30px;
+  flex-shrink: 0;
+  padding-top: 12px;
 }
 
 .local-card {
@@ -1718,7 +1724,7 @@ td strong {
 }
 
 .compact .nav-item.active:before {
-  left: -12px;
+  left: 0;
 }
 
 .compact .profile {
@@ -2605,6 +2611,10 @@ td strong {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 19px;
   margin-bottom: 24px;
+}
+
+.operation-grid > .empty {
+  grid-column: 1 / -1;
 }
 
 .operation-card {

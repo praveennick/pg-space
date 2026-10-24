@@ -413,7 +413,7 @@ function Shell() {
                   "notifications",
                   "activity",
                 ].map((p) => (
-                  <Route key={p} path={p} element={<Operations />} />
+                  <Route key={p} path={p} element={<Operations key={p} />} />
                 ))}
                 <Route
                   path="*"

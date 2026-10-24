@@ -30,7 +30,7 @@ const plainActivity = (value: string) =>
 export default function Operations() {
   const { s, open } = useApp(),
     page = useLocation().pathname.split("/").at(-1),
-    [filter, setFilter] = useState("All"),
+    [filter, setFilter] = useState(page === "maintenance" ? "Open" : "All"),
     [resolve, setResolve] = useState(""),
     [notes, setNotes] = useState(""),
     [busy, setBusy] = useState(false),
@@ -237,6 +237,12 @@ export default function Operations() {
       )}
       {isMaint && (
         <div className="operation-grid">
+          {!s.tickets.some((t) => filter === "All" || t.status === filter) && (
+            <Empty
+              title={filter === "Open" ? "No open repairs" : "No repairs here"}
+              description="Choose another tab or report a problem."
+            />
+          )}
           {s.tickets
             .filter((t) => filter === "All" || t.status === filter)
             .map((t) => {
