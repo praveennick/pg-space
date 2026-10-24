@@ -56,6 +56,8 @@ Sending is limited to 30 requests per PG and 3 per resident per hour. Status rec
 
 ## Deployment troubleshooting
 
+- **Firebase rejects the password-setup email:** its continuation URL must use a hostname listed in **Authentication → Settings → Authorized domains**. The current app needs `lucky-luxury-pg.netlify.app`. `node scripts/check-auth-email-settings.mjs` reads the relevant settings without sending mail; `--allow-netlify-domain` adds only that fixed hostname while preserving existing entries. Updated functions return safe provider codes such as `UNAUTHORIZED_DOMAIN`, `API_KEY_INVALID` or `EMAIL_RATE_LIMITED`, and record them with the invitation status.
+
 - **HTTP 502 / `ERR_REQUIRE_ESM` mentioning `jwks-rsa` and `jose`:** the function crashed before handling the request. This project pins Firebase Admin to 13.10.0, which loads under Lambda's default module restrictions. Redeploy from the updated repository and lockfile. `npm run check:functions-runtime` is now a build gate that reproduces those restrictions locally.
 - **Reset says permission denied:** publish the latest rules with `npm run deploy:rules`. The reset must read/delete invitation metadata too; earlier rules did not permit those paths. All collections are read before deletion starts, so a permission failure at that stage deletes nothing.
 - **A webpage is returned for the email endpoint:** confirm Netlify deployed `tenant-login` and used the current `netlify.toml`; uploading only the `dist` folder does not deploy a server function. `node scripts/check-tenant-login-deployment.mjs` checks the public routes using GET only and does not send mail.

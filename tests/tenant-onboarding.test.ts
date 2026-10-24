@@ -206,6 +206,21 @@ describe("automatic tenant login setup", () => {
     expect(documents.has(tenantPath)).toBe(true);
     expect(documents.get(statePath)?.status).toBe("failed");
   });
+  it("returns and records a safe actionable Firebase error code", async () => {
+    fetcher.mockResolvedValue(
+      Response.json(
+        { error: { message: "UNAUTHORIZED_DOMAIN" } },
+        { status: 400 },
+      ),
+    );
+    const response = await invoke();
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      code: "UNAUTHORIZED_DOMAIN",
+    });
+    expect(documents.get(statePath)?.errorCode).toBe("UNAUTHORIZED_DOMAIN");
+    expect(documents.has(tenantPath)).toBe(true);
+  });
   it("does not automatically repeat an email whose submission is uncertain", async () => {
     fetcher.mockRejectedValue(new Error("timeout"));
     expect((await invoke()).status).toBe(500);

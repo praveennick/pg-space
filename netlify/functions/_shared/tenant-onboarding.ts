@@ -1,6 +1,7 @@
 import type { Auth, DecodedIdToken, UserRecord } from "firebase-admin/auth";
 import type { Firestore } from "firebase-admin/firestore";
 import { z } from "zod/v4";
+import { firebaseEmailFailure } from "./firebase-email-errors";
 
 type Dependencies = {
   auth: Auth;
@@ -14,6 +15,7 @@ class Failure extends Error {
   constructor(
     public status: number,
     message: string,
+    public providerCode?: string,
   ) {
     super(message);
   }
@@ -293,10 +295,15 @@ export async function handleTenantOnboarding(
     );
     if (!response.ok) {
       if (response.status < 500) emailRequestStarted = false;
-      throw new Failure(
-        response.status === 429 ? 429 : 502,
-        "Firebase could not accept the password-setup email request. Check Authentication email settings and try again.",
+      const provider = firebaseEmailFailure(
+        response.status,
+        await response.json().catch(() => null),
       );
+      console.warn("Firebase password-setup request rejected", {
+        status: response.status,
+        code: provider.code,
+      });
+      throw new Failure(provider.status, provider.message, provider.code);
     }
     try {
       await inviteRef.set(
@@ -314,6 +321,9 @@ export async function handleTenantOnboarding(
           {
             status: emailRequestStarted ? "uncertain" : "failed",
             updatedAt: now(),
+            ...(cause instanceof Failure && cause.providerCode
+              ? { errorCode: cause.providerCode }
+              : {}),
           },
           { merge: true },
         );
@@ -322,7 +332,10 @@ export async function handleTenantOnboarding(
       }
     }
     if (cause instanceof Failure)
-      return reply(cause.status, { error: cause.message });
+      return reply(cause.status, {
+        error: cause.message,
+        ...(cause.providerCode ? { code: cause.providerCode } : {}),
+      });
     console.error("Tenant login setup failed.");
     return reply(500, {
       error: emailRequestStarted
