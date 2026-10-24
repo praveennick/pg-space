@@ -36,11 +36,15 @@ import {
   Monitor,
   CircleHelp,
   FileText,
+  LogOut,
 } from "lucide-react";
+import { onAuthStateChanged, signOut, type User } from "firebase/auth";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
 import { useData } from "./hooks/useData";
-import { store } from "./data";
-import { initialize } from "./data/seed";
+import { firebaseStore, store } from "./data";
+import { initialize, initializeCloud } from "./data/seed";
+import { cloudAuth, firebaseMode } from "./data/firebase";
+import { FirebaseSignIn } from "./components/FirebaseSignIn";
 
 import { Button, Modal } from "./components/ui";
 import { Editors, type EditorState } from "./components/Editors";
@@ -128,7 +132,7 @@ function Shell() {
   if (error)
     return (
       <div className="boot">
-        <h1>Unable to open local storage</h1>
+        <h1>Unable to open saved records</h1>
         <p>{error.message}</p>
         <Button onClick={() => window.location.reload()}>Try again</Button>
       </div>
@@ -168,7 +172,9 @@ function Shell() {
     : [];
   return (
     <AppContext.Provider value={{ s, open: setEditor }}>
-      <div className={`app ${collapsed ? "compact" : ""} ${mobile ? "menu-open" : ""}`}>
+      <div
+        className={`app ${collapsed ? "compact" : ""} ${mobile ? "menu-open" : ""}`}
+      >
         {mobile && (
           <button
             className="mobile-scrim"
@@ -176,8 +182,15 @@ function Shell() {
             onClick={() => setMobile(false)}
           />
         )}
-        <aside className={`sidebar ${mobile ? "show" : ""}`} aria-label="Workspace navigation">
-          <NavLink className="brand" to="/app/dashboard" onClick={() => setMobile(false)}>
+        <aside
+          className={`sidebar ${mobile ? "show" : ""}`}
+          aria-label="Workspace navigation"
+        >
+          <NavLink
+            className="brand"
+            to="/app/dashboard"
+            onClick={() => setMobile(false)}
+          >
             <span className="brand-mark">
               <Building2 size={23} />
             </span>
@@ -186,12 +199,19 @@ function Shell() {
               <small>PROPERTY, SIMPLIFIED.</small>
             </span>
           </NavLink>
-          <button className="sidebar-close" aria-label="Close navigation" onClick={() => setMobile(false)}>
+          <button
+            className="sidebar-close"
+            aria-label="Close navigation"
+            onClick={() => setMobile(false)}
+          >
             <X size={20} />
           </button>
           <button
             className="property-switch"
-            onClick={() => { setMobile(false); navigate("/app/settings"); }}
+            onClick={() => {
+              setMobile(false);
+              navigate("/app/settings");
+            }}
           >
             <span className="property-icon">
               <Building2 size={19} />
@@ -223,7 +243,12 @@ function Shell() {
           <div className="sidebar-bottom">
             <div className="local-card">
               <span className="live-dot" />
-              Demo on this device<p>Data stays in this browser.</p>
+              {firebaseMode ? "Saved to Firebase" : "Demo on this device"}
+              <p>
+                {firebaseMode
+                  ? "Your account keeps records in sync."
+                  : "Data stays in this browser."}
+              </p>
               <button onClick={() => setHelp(true)}>
                 How your data is saved <ArrowUpRight size={13} />
               </button>
@@ -232,10 +257,23 @@ function Shell() {
               <span className="avatar">PK</span>
               <span>
                 <strong>Property Manager</strong>
-                <small>PG demo</small>
+                <small>
+                  {firebaseMode ? cloudAuth?.currentUser?.email : "PG demo"}
+                </small>
               </span>
               <ChevronDown size={15} />
             </button>
+            {firebaseMode && cloudAuth && (
+              <button
+                className="nav-item"
+                onClick={() => {
+                  if (cloudAuth) void signOut(cloudAuth);
+                }}
+              >
+                <LogOut size={18} />
+                <span>Sign out</span>
+              </button>
+            )}
           </div>
           <button
             className="collapse"
@@ -381,7 +419,8 @@ function Shell() {
             </Suspense>
             <footer className="page-footer">
               <span>
-                <span className="live-dot" /> Saved in this browser
+                <span className="live-dot" />{" "}
+                {firebaseMode ? "Saved to Firebase" : "Saved in this browser"}
               </span>
               <span>
                 PG Space <span>·</span> Manage your PG in one place.
@@ -412,15 +451,24 @@ function Shell() {
           <Modal title="How your data is saved" onClose={() => setHelp(false)}>
             <div className="dialog-body">
               <CircleHelp className="accent" size={32} />
-              <p>
-                This demo saves records in this browser. The sample residents
-                are not real people. You do not need to sign in.
-              </p>
-              <p>
-                Records do not move to your other devices. Clearing browser
-                data can remove them, so download a backup in Settings. Do not
-                enter real ID documents or private financial details here.
-              </p>
+              {firebaseMode ? (
+                <p>
+                  Your records are saved under your signed-in Firebase account.
+                  Sign in with the same account on another device to see them
+                  there. Download a backup in Settings before replacing records.
+                </p>
+              ) : (
+                <>
+                  <p>
+                    This demo saves records in this browser. The sample
+                    residents are not real people. You do not need to sign in.
+                  </p>
+                  <p>
+                    Records do not move to your other devices. Clearing browser
+                    data can remove them, so download a backup in Settings.
+                  </p>
+                </>
+              )}
               <Button
                 onClick={() => {
                   setHelp(false);
@@ -436,11 +484,11 @@ function Shell() {
     </AppContext.Provider>
   );
 }
-export default function App() {
+function WorkspaceApp() {
   const [ready, setReady] = useState(false),
     [error, setError] = useState("");
   useEffect(() => {
-    initialize(store)
+    (firebaseMode ? initializeCloud(store) : initialize(store))
       .then(() => setReady(true))
       .catch((e) => setError(String(e)));
   }, []);
@@ -471,4 +519,25 @@ export default function App() {
       <Toaster position="top-right" richColors />
     </QueryClientProvider>
   );
+}
+
+export default function App() {
+  const [user, setUser] = useState<User | null | undefined>(undefined);
+  useEffect(() => {
+    if (!cloudAuth) return;
+    return onAuthStateChanged(cloudAuth, (next) => {
+      firebaseStore?.setUser(next?.uid || "");
+      queryClient.clear();
+      setUser(next);
+    });
+  }, []);
+  if (!firebaseMode) return <WorkspaceApp />;
+  if (user === undefined)
+    return (
+      <div className="boot">
+        <Building2 size={36} />
+        <h2>Checking your account…</h2>
+      </div>
+    );
+  return user ? <WorkspaceApp key={user.uid} /> : <FirebaseSignIn />;
 }

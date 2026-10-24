@@ -34,6 +34,7 @@ import { Button, Modal, Field, Badge } from "./ui";
 import { depositActionLabel } from "./labels";
 import { TenantAvatar, TenantPhotoPicker } from "./TenantPhoto";
 import { fileStorage } from "../services/fileStorage";
+import { firebaseMode } from "../data/firebase";
 import { DateInput } from "./DateInput";
 import { displayDate, displayMonth } from "../domain/dates";
 export type EditorState = {
@@ -426,12 +427,13 @@ function TenantEditor({
         },
         notes: v.notes,
       };
-      if (photo) {
+      if (!firebaseMode && photo) {
         t.photo = await fileStorage.saveTenantPhoto(t.id, photo);
         if (!existing) newPhotoId = t.id;
       }
-      if (removePhoto) delete t.photo;
-      if (removePhoto) await fileStorage.deleteTenantPhoto(t.id);
+      if (firebaseMode || removePhoto) delete t.photo;
+      if (!firebaseMode && removePhoto)
+        await fileStorage.deleteTenantPhoto(t.id);
       if (existing) await service.editTenant(t);
       else
         await service.checkIn(
@@ -493,7 +495,7 @@ function TenantEditor({
           {(existing || step === 0) && (
             <>
               <h3>Resident details</h3>
-              <TenantPhotoPicker
+              {!firebaseMode && <TenantPhotoPicker
                 tenant={existing}
                 photo={photo}
                 removed={removePhoto}
@@ -505,7 +507,7 @@ function TenantEditor({
                   setPhoto(null);
                   setRemovePhoto(true);
                 }}
-              />
+              />}
               <div className="form-grid">
                 <Field label="Full name *">
                   <input
@@ -1213,7 +1215,9 @@ function TransactionEditor({
           notes: str("notes"),
         });
       }
-      toast.success("Saved in this browser");
+      toast.success(
+        firebaseMode ? "Saved to Firebase" : "Saved in this browser",
+      );
       onClose();
     } catch (e) {
       setError((e as Error).message);

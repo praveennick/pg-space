@@ -10,9 +10,13 @@ Identity document **files are disabled** in local mode. The `FileStorageService`
 
 The Settings JSON backup includes resident photo _metadata_, not image bytes. Importing a backup or resetting demo data clears local photo blobs. A restored resident therefore displays initials until a photo is uploaded again.
 
-## Phase 2: authenticated cloud deployment
+## Firebase mode and future private documents
 
-Use Firebase Authentication for owner and staff identity, and Cloud Firestore for tenant records, verification metadata, private object keys, ownership scope and audit events. Choose `TrustedFileStorageService` at the composition root only after a trusted file gateway exists; inject a function that returns the current Firebase ID token. The frontend sends that token to the gateway and never holds a Supabase service-role key. `TrustedFileStorageService` is a browser client for the gateway contract, not a public Supabase client.
+Firebase mode uses Authentication and Firestore only. Profile photo controls are hidden there, and initials appear instead of photos. No Firebase Storage bucket or billing upgrade is needed. Local demo photos remain in that browser's IndexedDB and do not sync to Firebase. Firebase backup imports discard photo metadata because JSON backups do not contain image bytes. Identity document file methods remain disabled.
+
+The optional trusted Supabase document gateway described below has **not** been deployed. It is a future integration for separately authorized staff and sensitive documents.
+
+For a future staff/document gateway, use Firebase Authentication and Cloud Firestore membership records. Choose `TrustedFileStorageService` at the composition root only after a trusted file gateway exists; inject a function that returns the current Firebase ID token. The frontend sends that token to the gateway and never holds a Supabase service-role key. `TrustedFileStorageService` is a browser client for the gateway contract, not a public Supabase client.
 
 The trusted gateway must, for **every** method:
 
@@ -31,6 +35,6 @@ Suggested gateway routes used by `TrustedFileStorageService`:
 | PUT                | `/tenants/{id}/documents/{approvedType}` | `StoredFile`                          |
 | GET / DELETE       | `/tenants/{id}/documents/{opaqueKey}`    | file bytes/204 or 204                 |
 
-The gateway needs an authenticated deployment and property membership model before these routes can be enabled. No cloud credentials or server endpoints are configured in this repository, so Phase 2 file operations are not live.
+The document gateway needs an authenticated deployment and property membership model before these routes can be enabled. Private document operations are not live.
 
 References: [Firebase Auth and Firestore rules](https://firebase.google.com/docs/rules/rules-and-auth), [Supabase private buckets](https://supabase.com/docs/guides/storage/buckets/fundamentals), [Supabase RLS](https://supabase.com/docs/guides/storage/security/access-control), [UIDAI verification guidance](https://uidai.gov.in/images/pressrelease/Press_Release_10.1.23.pdf).

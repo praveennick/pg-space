@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useApp } from "../hooks/useApp";
 import { service, store } from "../data";
 import { demoData } from "../data/seed";
+import { firebaseMode } from "../data/firebase";
 import { validateBackup } from "../services/application";
 import { download } from "../services/export";
 import { paise, type Snapshot } from "../domain/models";
@@ -205,15 +206,22 @@ export default function Settings() {
       </form>
       <section className="panel data-panel">
         <SectionTitle
-          title="Data saved on this device"
-          sub="This app saves your data in this browser."
+          title={
+            firebaseMode
+              ? "Cloud data and backups"
+              : "Data saved on this device"
+          }
+          sub={
+            firebaseMode
+              ? "Records sync through your Firebase account."
+              : "This app saves your data in this browser."
+          }
           action={<Database className="accent" size={24} />}
         />
         <p>
-          Data saved here does not appear on your other devices. Clearing this
-          browser can delete it. Save a backup before clearing browser data.
-          This demo does not have accounts or secure online storage, so use
-          sample details only.
+          {firebaseMode
+            ? "Sign in with the same account on another device to see these records. Keep a downloaded backup before importing another one. Resident photos are unavailable in Firebase mode."
+            : "Data saved here does not appear on your other devices. Clearing this browser can delete it. Save a backup before clearing browser data. Use sample details only."}
         </p>
         <div className="button-row">
           <Button
@@ -240,9 +248,11 @@ export default function Settings() {
           >
             <Upload size={16} /> Import backup
           </Button>
-          <Button variant="danger" onClick={() => setReset(true)}>
-            <RotateCcw size={16} /> Reset demo data
-          </Button>
+          {!firebaseMode && (
+            <Button variant="danger" onClick={() => setReset(true)}>
+              <RotateCcw size={16} /> Reset demo data
+            </Button>
+          )}
           <input
             ref={file}
             hidden
@@ -264,7 +274,7 @@ export default function Settings() {
           />
         </div>
       </section>
-      {reset && (
+      {reset && !firebaseMode && (
         <Modal
           title="Reset all demo data?"
           description="This removes current records in this browser and starts again with sample data."
@@ -307,15 +317,25 @@ export default function Settings() {
             </p>
             <p>
               This backup has been checked. Using it will replace the rooms,
-              residents, payments, and quotations currently saved in this
-              browser.
+              residents, payments, and quotations currently saved{" "}
+              {firebaseMode ? "in Firebase" : "in this browser"}.
             </p>
             <Button
               disabled={busy}
               onClick={async () => {
                 setBusy(true);
                 try {
-                  await service.import({ version: 2, data: backup });
+                  const data = firebaseMode
+                    ? {
+                        ...backup,
+                        tenants: backup.tenants.map((tenant) => {
+                          const { photo: _photo, ...rest } = tenant;
+                          void _photo;
+                          return rest;
+                        }),
+                      }
+                    : backup;
+                  await service.import({ version: 2, data });
                   setBackup(null);
                   toast.success("Backup restored");
                 } catch (e) {

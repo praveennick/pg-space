@@ -1,50 +1,20 @@
-﻿# Firebase integration plan (Phase 2, not connected)
+# Firebase mode
 
-The current app runs entirely in IndexedDB. Keep it runnable without credentials while introducing a separate opt-in Firebase environment. Do not install a fake Firestore implementation or automatically migrate local data.
+Firebase mode is opt-in. The normal `npm run dev` command still opens the local IndexedDB demo. `npm run dev:firebase` opens a separate, signed-in Firestore workspace connected to the `lucky-luxury-mens-pg` web app using `.env.firebase.local`. The web config is a public project identifier, not an administrator credential. Analytics is intentionally not initialized.
 
-## Boundary and migration approach
+## One-time Firebase Console setup
 
-Keep domain schemas/calculations and page-facing application commands. Implement typed entity repositories from `src/data/contracts.ts` and select an adapter in the composition root. The local transaction callback currently works over an in-memory snapshot inside Dexie; do not translate it to a full Firestore download and rewrite. Introduce a command gateway for cross-entity operations (assign, transfer, checkout, invoice, payment, deposit settlement) with matching local and remote implementations. Remote implementations should invoke narrowly scoped callable functions where financial authorization or multi-document invariants demand trusted execution. React hooks retain the same feature-facing API; replace the Dexie subscription with authorized Firestore listeners/query invalidation.
+1. In **Authentication → Sign-in method**, enable **Email/Password**. Add your owner email/password in **Authentication → Users**. The app does not offer public account creation.
+2. Create a **Cloud Firestore** database in this project. Choose a suitable region before storing business data; region choices are difficult to change later. **Firebase Storage is not required.**
+3. The Firebase CLI is installed in this project's development dependencies, so you do not need a global `firebase` command. From the project folder, run `npm install` if needed, then `npm run firebase:login` and `npm run firebase:projects` to confirm access to `lucky-luxury-mens-pg`. Review any existing Firestore rules in the Firebase Console before deploying: deployment replaces the active rules with the included [firestore.rules](firestore.rules). Run `npm run check:rules` to validate the deployment, then `npm run deploy:rules`. Both commands target **Firestore rules only**. Review the console's active rules afterward. The frontend does **not** deploy rules by itself.
+4. Start the cloud workspace with `npm run dev:firebase`, or make a production bundle with `npm run build:firebase`. Sign in with the owner account. The first sign-in creates an empty property named **My PG**; update its details in Settings.
 
-## Authentication and authorization
+Cloud records live under `accounts/{firebaseUid}/records/{entity}/items/{recordId}`. The rules restrict each account to its own records; another Firebase user cannot see that account's PG. Firebase mode does not upload resident photos or identity document files. It shows initials in place of photos. The local demo still supports browser-only photos.
 
-Add Firebase Authentication email/password owner and staff accounts, authenticated routing, session recovery and sign-out. Provision membership through trusted administrative workflows. Use server-verified custom claims or secured property membership documents with role, property scope and explicit permissions. Rules must enforce membership and permissions, not merely `request.auth != null`. Never accept client role, computed bed status, payment status, or revenue totals as authority.
+## Existing local records
 
-## Firestore model
+Nothing is uploaded when Firebase mode is enabled. To move records deliberately, first **Download backup** from the local demo, then sign into Firebase mode and use **Import backup** in Settings. Review the record counts before confirming; importing replaces that account's cloud records. Firebase imports discard local photo metadata because the photo files are not part of the JSON backup and cloud photo storage is disabled. Keep the downloaded backup.
 
-Use `properties/{propertyId}` and property-scoped subcollections: `floors`, `rooms`, `beds`, `tenants`, `occupancies`, `reservations`, `invoices`, `invoiceLines`, `payments`, `paymentAllocations`, `depositTransactions`, `expenses`, `maintenanceTickets`, `notifications`, `auditLogs`, `settings`.
+Local mode and Firebase mode use the same page-facing application service. Firebase mode has an owner-scoped Firestore adapter and versioned transactions; it currently reads the entire property's collections for each command. This supports a small single-owner PG, but it is not a scaled server command layer. Firestore transaction size, network availability and read costs limit large imports and high-volume use. A later production release should move payment, bed assignment, audit and role-specific staff commands behind trusted functions and add query pagination. Separate staff accounts and audited document storage are not yet implemented.
 
-Subcollections keep property access boundaries clear and suit the current single-property queries. Cross-property reporting can use authorized collection-group queries later, including immutable property IDs on records. Preserve UUIDs and human labels separately. Convert date-only strings explicitly using the property's Asia/Kolkata calendar; use server timestamps for creation/audit times. Preserve integer paise amounts and invoice snapshots.
-
-Plan composite indexes for floor + archived + room number, roomId + active beds, tenantId + start, bedId + active stay, status + expiry, month + due, tenantId + payment date, expense date + category, ticket status + priority. Use stable cursor pagination (`orderBy` and `startAfter`) rather than downloading the entire ledger. Firestore has no joins: maintain minimal authorized read projections or bounded related queries, with server-maintained aggregate views where useful.
-
-## Critical commands
-
-- Maintain a canonical allocation/lock record per bed. In a Firestore transaction, read and validate the lock, relevant occupancy/reservation/block records and membership before creating a stay. Revalidate capacity retirement and reservation conversion on the server.
-- Generate invoices using deterministic property/tenant/billing-month uniqueness keys. Preserve invoice totals; support audited adjustments with distinct line items rather than rewriting paid history.
-- Record payments with server-enforced idempotency keys, exact paise allocation totals, invoice ownership and balance checks. Record validated immutable events and audit records; use explicit reversal commands for corrections.
-- Distinguish releasing physical occupancy from debt, booking-money and deposit settlement. Deposit deductions/refunds cannot exceed held funds. Do not count deposits or unallocated advances as rent.
-- Use transactions for read-dependent invariants and batched writes for already-validated independent updates; do not assume relational transactions or cross-service atomicity. Schedule expiry/billing jobs with retry-safe keys.
-
-## Private files and application protection
-
-Use authenticated private Firebase Storage paths scoped by property and tenant/ticket IDs for future agreements, identity documents, receipt files and maintenance images. Apply Storage Rules for property membership, MIME/type allowlists, size limits, and write permissions. Validate uploaded content in trusted processing; use short-lived authorized downloads and a retention policy. Never expose a public bucket for tenant identity documents.
-
-Add Firebase App Check where appropriate as abuse protection, not a replacement for authentication/rules. Keep secrets in managed server configuration. Firestore and Storage Rules should deny unapproved fields, unauthorized cross-property reads/writes, forged audit records and privileged direct client financial writes.
-
-## Emulator-first development and deployment
-
-Use Auth, Firestore, Storage and Functions emulators. Test owner/staff/unauthenticated roles, cross-property denial, transaction retries, duplicate payments, overpayments, simultaneous bed assignment, reservation conversion races, unsafe retirement, refunds and offline replay. Validate indexes in staging. Add structured monitoring, error alerts, restricted administrative access, scheduled backups, restore drills, retention and incident response before production.
-
-## Explicit local-data import
-
-1. The owner exports a versioned local JSON backup and opts in to migration.
-2. Validate schema, IDs, relationships, monetary totals, active allocations, dates, settings and duplicate natural keys. Preview counts, conflicts and rejected records; never migrate fictional seed data implicitly.
-3. Map property/floor/settings records and embedded invoice totals to the new schema. Preserve immutable UUIDs and paise amounts; tag a migration batch ID and source checksum.
-4. Use a privileged migration tool with least privilege, dry-run mode, resumable checkpoints and deterministic upsert/uniqueness rules. Stage data before making it visible.
-5. Reconcile record counts, invoice/payment allocations, deposits and active bed locks. Require explicit acceptance before switching the selected adapter.
-6. Retain the original export and a pre-import cloud backup. Roll back only the tagged migration batch or restore the staged property according to a tested recovery plan. Log the migration through trusted audit writes.
-
-No records leave the browser until the user explicitly initiates a future authorized migration.
-
-Resident photo and private-document storage have a separate provider and gateway plan in [FILE_STORAGE_INTEGRATION.md](FILE_STORAGE_INTEGRATION.md).
+The Firebase API key and app ID are public by design. Access control depends on Firebase Authentication and the deployed Firestore rules. Do not deploy with test-mode/public rules. See [Firebase web setup](https://firebase.google.com/docs/web/setup), [Firestore rules](https://firebase.google.com/docs/firestore/security/get-started), and [Firebase API keys](https://firebase.google.com/docs/projects/api-keys).

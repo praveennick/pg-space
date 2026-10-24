@@ -3604,3 +3604,27 @@ td strong {
   opacity: 0;
   pointer-events: none;
 }
+.firebase-signin {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--bg);
+}
+.firebase-signin-card {
+  width: min(100%, 420px);
+  padding: 32px;
+  display: grid;
+  gap: 18px;
+}
+.firebase-signin-card h1 {
+  margin: 0;
+  font-size: 25px;
+}
+.firebase-signin-card p {
+  margin: 0;
+  color: var(--muted);
+}
+.firebase-signin-card .btn {
+  justify-content: center;
+}

@@ -1,6 +1,6 @@
 ﻿# PG Space
 
-A local-first PG management workspace built with React, TypeScript, Vite and Dexie. No Firebase credentials, backend, or external database are needed. All demo residents are fictional.
+A PG management workspace built with React, TypeScript and Vite. The default demo is local-first with Dexie; an opt-in Firebase mode adds account sign-in and cloud records. All demo residents are fictional.
 
 ## Run locally
 
@@ -12,6 +12,8 @@ npm run dev
 ```
 
 Open the localhost URL printed by Vite. On Windows, if PowerShell blocks `npm.ps1`, use `npm.cmd install` and `npm.cmd run dev`.
+
+To use the configured Firebase project, complete the [Firebase setup steps](FIREBASE_INTEGRATION.md) and run `npm run dev:firebase`. Local demo records are never uploaded automatically.
 
 To open the demo from a phone on the same Wi-Fi network, start Vite with `npm run dev -- --host 0.0.0.0` and visit the computer's LAN address (for example, `http://192.168.1.17:5173/app/dashboard`). The app supports browsers that omit `crypto.randomUUID()` on LAN HTTP. Browser storage belongs to that phone and URL, so records saved on your computer's `localhost` are not shared with the phone. LAN HTTP is unencrypted; use fictional demo data and an HTTPS deployment for real use.
 
@@ -38,18 +40,18 @@ The browser tests use an installed Chrome when `PLAYWRIGHT_CHROME_PATH` is set, 
 - Expense editing, categories, recurring-template metadata and CSV exports.
 - Reservation conflict prevention and conversion to check-in; expiry-derived availability; maintenance tickets with optional operational bed blocks.
 - Stored notifications, live reminders, read state, activity history, property/billing defaults, transactional JSON backup/restore with schema and integrity validation, confirmed demo reset.
-- Live dashboard statistics and reporting from IndexedDB. Occupancy is a current snapshot; rent totals use invoice billing months; cash flow uses payment dates and operating expense dates.
+- Live dashboard statistics and reporting from the selected data store. Occupancy is a current snapshot; rent totals use invoice billing months; cash flow uses payment dates and operating expense dates.
 
 ## Architecture
 
-`pages/components -> application service -> DataStore/Repository contracts -> LocalStore (Dexie)`
+`pages/components -> application service -> DataStore/Repository contracts -> LocalStore (Dexie) or FirestoreStore`
 
 - `src/domain`: independent Zod schemas, domain types and pure calculations.
 - `src/data/contracts.ts`: typed repositories for every persistent entity and a transactional store contract.
 - `src/data/local.ts`: Dexie indexes, repositories, atomic commands and reactive subscriptions.
 - `src/services/application.ts`: validation and multi-entity use cases. UI never calls IndexedDB directly.
 - `src/hooks/useData.ts`: TanStack Query cache invalidated by a Dexie live subscription, including other tabs.
-- `src/data/index.ts`: composition root for replacing the local adapter.
+- `src/data/index.ts`: selects the local adapter by default or the opt-in Firebase adapter.
 
 Financial and occupancy commands revalidate inside a read/write transaction. Retired beds remain addressable by historical records. Schema version 1 stores rooms, beds, tenants, occupancies, reservations, invoices, payments, allocations, deposit transactions, expenses, tickets, notifications, audit entries and one property/settings record. Floors are numeric, configured on the property. A single monthly rent amount is represented directly on each invoice.
 
@@ -61,6 +63,6 @@ Financial and occupancy commands revalidate inside a read/write transaction. Ret
 - Security deposits, booking amounts and unallocated advances are not rental revenue. A reservation booking amount remains separately recorded after conversion/cancellation; automatic booking credit/refund processing is not implemented.
 - Recurring expenses are templates/flags, not automatically scheduled charges. Automatic late fees, discount/charge line items, receipt attachments, and secure document uploads are not implemented.
 - Custom financial date ranges select whole billing months for invoice totals and exact dates for cash receipts/expenses. Occupancy is current, not a reconstructed historical snapshot.
-- Browser storage is device/browser/origin specific. Clearing site data removes it; export backups in Settings. This application is not secure multi-user authentication, centralized backup, distributed transaction processing or production financial storage. Do not enter real identity documents or sensitive personal data.
+- Local browser storage is device/browser/origin specific. Clearing site data removes it; export backups in Settings. Firebase mode adds owner sign-in and private cloud records, but does not yet include staff roles or trusted server-side financial commands. Do not upload identity documents.
 
-See `FIREBASE_INTEGRATION.md` for a documentation-only migration plan. No Firebase SDK is included and no automatic upload occurs.
+See [FIREBASE_INTEGRATION.md](FIREBASE_INTEGRATION.md) for Firebase setup, security rules and explicit backup import. No automatic upload occurs.

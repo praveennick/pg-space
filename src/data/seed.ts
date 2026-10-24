@@ -226,3 +226,26 @@ export async function initialize(store: DataStore) {
     if (!s.settings.length) Object.assign(s, demoData());
   });
 }
+
+export async function initializeCloud(store: DataStore) {
+  await store.transact((state) => {
+    if (state.settings.length) return;
+    state.settings.push({
+      id: "property",
+      name: "My PG",
+      address: "",
+      phone: "",
+      email: "",
+      floors: 4,
+      maxCapacity: 12,
+      defaultRent: 850000,
+      defaultDeposit: 1500000,
+      dueDay: 5,
+      graceDays: 0,
+      prorate: true,
+      receiptPrefix: "PGS",
+      notifications: true,
+      reducedMotion: false,
+    });
+  });
+}

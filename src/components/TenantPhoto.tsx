@@ -3,6 +3,7 @@ import { Camera, RefreshCw, SwitchCamera, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import type { Tenant } from "../domain/models";
 import { fileStorage } from "../services/fileStorage";
+import { firebaseMode } from "../data/firebase";
 import { prepareProfilePhoto } from "../services/profilePhoto";
 import { Button, Modal } from "./ui";
 import "./TenantPhoto.css";
@@ -29,7 +30,7 @@ export function TenantAvatar({
   className?: string;
 }) {
   const [blob, setBlob] = useState<Blob | null>(null);
-  const photoKey = tenant.photo?.key;
+  const photoKey = firebaseMode ? undefined : tenant.photo?.key;
   const photoVersion = tenant.photo?.updatedAt;
   useEffect(() => {
     let current = true;

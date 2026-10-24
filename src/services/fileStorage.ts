@@ -1,4 +1,4 @@
-import { store } from "../data";
+import { localStore } from "../data";
 import { detectedImageType } from "./profilePhoto";
 
 export type StoredFile = {
@@ -48,7 +48,7 @@ export class LocalFileStorageService implements FileStorageService {
     )
       throw new Error("Please choose a valid profile photo.");
     const updatedAt = new Date().toISOString();
-    await store.db
+    await localStore.db
       .table<LocalPhoto>("tenantPhotos")
       .put({ tenantId, blob: file, mimeType: file.type, updatedAt });
     return {
@@ -61,13 +61,13 @@ export class LocalFileStorageService implements FileStorageService {
 
   async getTenantPhoto(tenantId: string): Promise<Blob | null> {
     return (
-      (await store.db.table<LocalPhoto>("tenantPhotos").get(tenantId))?.blob ??
-      null
+      (await localStore.db.table<LocalPhoto>("tenantPhotos").get(tenantId))
+        ?.blob ?? null
     );
   }
 
   async deleteTenantPhoto(tenantId: string): Promise<void> {
-    await store.db.table("tenantPhotos").delete(tenantId);
+    await localStore.db.table("tenantPhotos").delete(tenantId);
   }
 
   async saveAuthorizedDocument(): Promise<StoredFile> {
