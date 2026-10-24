@@ -1,5 +1,6 @@
 ﻿import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { toast } from "sonner";
 import {
   Plus,
   Search,
@@ -7,6 +8,7 @@ import {
   LogOut,
   Pencil,
   Wallet,
+  Mail,
 } from "lucide-react";
 import { useApp } from "../hooks/useApp";
 import { displayDate, displayMonth } from "../domain/dates";
@@ -17,8 +19,12 @@ import { rentStatusLabel } from "../components/labels";
 import { TenantAvatar } from "../components/TenantPhoto";
 import { WhatsAppReminder } from "../components/WhatsAppReminder";
 import { useAccess } from "../auth/access";
+import { firebaseMode } from "../data/firebase";
+import { inviteTenantLogin } from "../services/tenantLogin";
 export default function Tenants() {
-  const { role } = useAccess();
+  const { role, ownerUid } = useAccess();
+  const [loginInvite, setLoginInvite] = useState(false);
+  const [sendingLogin, setSendingLogin] = useState(false);
   const staff = role === "staff";
   const { s, open } = useApp(),
     { id } = useParams(),
@@ -50,9 +56,11 @@ export default function Tenants() {
           <h1>Your residents</h1>
           <p>See who lives here, their bed, rent, and contact details.</p>
         </div>
-        {!staff && <Button onClick={() => open({ kind: "tenant" })}>
-          <Plus size={17} /> Add tenant
-        </Button>}
+        {!staff && (
+          <Button onClick={() => open({ kind: "tenant" })}>
+            <Plus size={17} /> Add tenant
+          </Button>
+        )}
       </div>
       <section className="panel">
         <div className="list-toolbar tenant-toolbar">
@@ -123,10 +131,12 @@ export default function Tenants() {
                           {occupancy ? rupees(occupancy.rent) : "—"}
                         </strong>
                       </span>
-                      {!staff && <span>
-                        <small>Rent due</small>
-                        <strong>{rupees(pending)}</strong>
-                      </span>}
+                      {!staff && (
+                        <span>
+                          <small>Rent due</small>
+                          <strong>{rupees(pending)}</strong>
+                        </span>
+                      )}
                     </span>
                   </button>
                 );
@@ -181,12 +191,14 @@ export default function Tenants() {
                         <td data-label="Monthly rent">
                           {o ? rupees(o.rent) : "—"}
                         </td>
-                        {!staff && <td
-                          data-label="Rent due"
-                          className={pending ? "warning-text" : ""}
-                        >
-                          {rupees(pending)}
-                        </td>}
+                        {!staff && (
+                          <td
+                            data-label="Rent due"
+                            className={pending ? "warning-text" : ""}
+                          >
+                            {rupees(pending)}
+                          </td>
+                        )}
                         <td data-label="Status">
                           <Badge status={o ? "Occupied" : "neutral"}>
                             {o ? "Active" : "Checked out"}
@@ -276,26 +288,28 @@ export default function Tenants() {
             </div>
             {tab === "Overview" && (
               <>
-                {!staff && <div className="detail-metrics">
-                  <div>
-                    <small>Monthly rent</small>
-                    <strong>{rupees(stay?.rent || 0)}</strong>
+                {!staff && (
+                  <div className="detail-metrics">
+                    <div>
+                      <small>Monthly rent</small>
+                      <strong>{rupees(stay?.rent || 0)}</strong>
+                    </div>
+                    <div>
+                      <small>Deposit money held</small>
+                      <strong>{rupees(depositHeld(s, tenant.id))}</strong>
+                    </div>
+                    <div>
+                      <small>Rent still due</small>
+                      <strong>
+                        {rupees(
+                          s.invoices
+                            .filter((i) => i.tenantId === tenant.id)
+                            .reduce((v, i) => v + balance(s, i), 0),
+                        )}
+                      </strong>
+                    </div>
                   </div>
-                  <div>
-                    <small>Deposit money held</small>
-                    <strong>{rupees(depositHeld(s, tenant.id))}</strong>
-                  </div>
-                  <div>
-                    <small>Rent still due</small>
-                    <strong>
-                      {rupees(
-                        s.invoices
-                          .filter((i) => i.tenantId === tenant.id)
-                          .reduce((v, i) => v + balance(s, i), 0),
-                      )}
-                    </strong>
-                  </div>
-                </div>}
+                )}
                 <div className="info-grid">
                   <div>
                     <small>Email</small>
@@ -321,17 +335,29 @@ export default function Tenants() {
                   >
                     <Pencil size={15} /> Edit details
                   </Button>
-                  {!staff && <WhatsAppReminder
-                    tenantId={tenant.id}
-                    label="WhatsApp reminder"
-                    className="reminder-inline"
-                  />}
-                  {!staff && <Button
-                    variant="outline"
-                    onClick={() => open({ kind: "deposit", id: tenant.id })}
-                  >
-                    <Wallet size={15} /> Deposit history
-                  </Button>}
+                  {!staff && (
+                    <WhatsAppReminder
+                      tenantId={tenant.id}
+                      label="WhatsApp reminder"
+                      className="reminder-inline"
+                    />
+                  )}
+                  {!staff && firebaseMode && tenant.email && (
+                    <Button
+                      variant="outline"
+                      onClick={() => setLoginInvite(true)}
+                    >
+                      <Mail size={15} /> Send login email
+                    </Button>
+                  )}
+                  {!staff && (
+                    <Button
+                      variant="outline"
+                      onClick={() => open({ kind: "deposit", id: tenant.id })}
+                    >
+                      <Wallet size={15} /> Deposit history
+                    </Button>
+                  )}
                   {stay && (
                     <>
                       <Button
@@ -460,6 +486,48 @@ export default function Tenants() {
                     <small>{a.detail}</small>
                   </div>
                 ))}
+          </div>
+        </Modal>
+      )}
+      {loginInvite && tenant && (
+        <Modal
+          title="Send resident login email?"
+          description="The email contains a link to set or reset their password, then sign in to the app."
+          onClose={() => {
+            if (!sendingLogin) setLoginInvite(false);
+          }}
+        >
+          <div className="dialog-body">
+            <p>
+              Send to <strong>{tenant.email}</strong>. The login uses this email
+              and can open only this resident's records.
+            </p>
+            <p>
+              If an email was already requested, check their inbox before
+              sending again. Their current password stays active until they
+              choose a new one through the link.
+            </p>
+            <Button
+              disabled={sendingLogin}
+              onClick={async () => {
+                setSendingLogin(true);
+                try {
+                  const result = await inviteTenantLogin(
+                    ownerUid,
+                    tenant.id,
+                    true,
+                  );
+                  toast.success(`Login email requested for ${result.email}.`);
+                  setLoginInvite(false);
+                } catch (cause) {
+                  toast.error((cause as Error).message, { duration: 10000 });
+                } finally {
+                  setSendingLogin(false);
+                }
+              }}
+            >
+              {sendingLogin ? "Preparing login email…" : "Send login email"}
+            </Button>
           </div>
         </Modal>
       )}

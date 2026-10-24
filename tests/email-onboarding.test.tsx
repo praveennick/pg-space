@@ -82,7 +82,7 @@ describe("email and password onboarding", () => {
     render(<FirebaseSignIn />);
     fillSetup();
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "already has a password",
+      "already has an account",
     );
     expect(sessionStorage.getItem("pg-verify-after-setup")).toBeNull();
   });

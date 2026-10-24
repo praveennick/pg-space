@@ -204,9 +204,11 @@ export class FirestoreStore implements DataStore {
     const snapshots = await Promise.all(
       names.map((name) => getDocs(this.records(name))),
     );
-    const [portal, members] = await Promise.all([
+    const [portal, members, onboarding, inviteRate] = await Promise.all([
       getDocs(collection(db(), "accounts", owner, "portal")),
       getDocs(collection(db(), "accounts", owner, "members")),
+      getDocs(collection(db(), "accounts", owner, "tenantOnboarding")),
+      getDoc(doc(db(), "accounts", owner, "control", "tenantInviteRate")),
     ]);
     if (owner !== this.ownerUid || sessionRevision !== this.sessionRevision)
       throw new Error("The signed-in account changed. Please reload.");
@@ -220,6 +222,8 @@ export class FirestoreStore implements DataStore {
     );
     records.push(...portal.docs.map((item) => item.ref));
     records.push(...members.docs.map((item) => item.ref));
+    records.push(...onboarding.docs.map((item) => item.ref));
+    if (inviteRate.exists()) records.push(inviteRate.ref);
     const version = this.version();
     const apply = async (items: DocumentReference[], finish = false) => {
       await runTransaction(db(), async (transaction) => {

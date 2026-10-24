@@ -209,6 +209,31 @@ check(
   { role: "staff" },
 );
 
+check(
+  "staff cannot read invitation metadata",
+  "DENY",
+  "accounts/owner/tenantOnboarding/resident-one",
+  { role: "staff" },
+);
+check(
+  "admin cannot forge invitation results",
+  "DENY",
+  "accounts/owner/tenantOnboarding/resident-one",
+  { role: "admin", method: "create", after: { status: "submitted" } },
+);
+check(
+  "super admin can clear invitation metadata",
+  "ALLOW",
+  "accounts/owner/tenantOnboarding/resident-one",
+  { role: "super_admin", method: "delete" },
+);
+check(
+  "super admin can clear invite rate metadata",
+  "ALLOW",
+  "accounts/owner/control/tenantInviteRate",
+  { role: "super_admin", method: "delete" },
+);
+
 const client = new Client({
   urlPrefix: "https://firebaserules.googleapis.com",
   apiVersion: "v1",

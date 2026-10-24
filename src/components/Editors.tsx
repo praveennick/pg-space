@@ -34,7 +34,8 @@ import { Button, Modal, Field, Badge } from "./ui";
 import { depositActionLabel } from "./labels";
 import { TenantAvatar, TenantPhotoPicker } from "./TenantPhoto";
 import { fileStorage } from "../services/fileStorage";
-import { firebaseMode } from "../data/firebase";
+import { cloudAuth, firebaseMode } from "../data/firebase";
+import { inviteTenantLogin } from "../services/tenantLogin";
 import { DateInput } from "./DateInput";
 import { displayDate, displayMonth } from "../domain/dates";
 import { getVerificationErrors } from "../domain/verification";
@@ -327,6 +328,7 @@ function TenantEditor({
   editor: EditorState;
   onClose: () => void;
 }) {
+  const { ownerUid } = useAccess();
   const { s } = useApp(),
     existing = s.tenants.find((t) => t.id === editor.id),
     reservation = s.reservations.find((r) => r.id === editor.reservationId),
@@ -468,7 +470,7 @@ function TenantEditor({
         ...(existing || stamp()),
         name: v.name,
         phone: v.phone,
-        email: v.email,
+        email: v.email.trim().toLowerCase(),
         address: v.address,
         emergency: v.emergency,
         occupation: v.occupation,
@@ -489,6 +491,20 @@ function TenantEditor({
         },
         notes: v.notes,
       };
+      if (!existing && firebaseMode && t.email) {
+        if (t.email === cloudAuth?.currentUser?.email?.toLowerCase())
+          throw new Error(
+            "Use the resident's own email, not your signed-in email.",
+          );
+        if (
+          s.tenants.some(
+            (resident) => resident.email.trim().toLowerCase() === t.email,
+          )
+        )
+          throw new Error(
+            "This email is already used by a resident. Open their existing profile instead.",
+          );
+      }
       if (!firebaseMode && photo) {
         t.photo = await fileStorage.saveTenantPhoto(t.id, photo);
         if (!existing) newPhotoId = t.id;
@@ -510,9 +526,24 @@ function TenantEditor({
           },
           reservation?.id,
         );
-      toast.success(
-        existing ? "Resident updated" : "Resident checked in. Invoice created.",
-      );
+      if (!existing && firebaseMode && t.email) {
+        try {
+          const invitation = await inviteTenantLogin(ownerUid, t.id);
+          toast.success(
+            `Resident saved. Login email ${invitation.status === "already_submitted" ? "already requested" : "requested"} for ${invitation.email}.`,
+          );
+        } catch (cause) {
+          toast.warning(
+            `Resident saved, but the login email was not confirmed. ${(cause as Error).message}`,
+            { duration: 10000 },
+          );
+        }
+      } else
+        toast.success(
+          existing
+            ? "Resident updated"
+            : "Resident checked in. Invoice created.",
+        );
       onClose();
     } catch (e) {
       if (newPhotoId)
@@ -596,6 +627,13 @@ function TenantEditor({
                 </Field>
                 <Field label="Email">
                   <input type="email" {...register("email")} />
+                  {!existing && firebaseMode && (
+                    <small className="muted">
+                      Use the resident's own email. After saving, the app will
+                      create their tenant login and request a password-setup
+                      email.
+                    </small>
+                  )}
                 </Field>
                 <Field label="Occupation">
                   <input {...register("occupation")} />
@@ -960,16 +998,18 @@ function BedDetails({ id, onClose }: { id: string; onClose: () => void }) {
             <p>
               {tenant.phone} · Since {displayDate(stay?.start)}
             </p>
-            {!staff && <p>
-              Outstanding:{" "}
-              <strong>
-                {rupees(
-                  s.invoices
-                    .filter((i) => i.tenantId === tenant.id)
-                    .reduce((v, i) => v + balance(s, i), 0),
-                )}
-              </strong>
-            </p>}
+            {!staff && (
+              <p>
+                Outstanding:{" "}
+                <strong>
+                  {rupees(
+                    s.invoices
+                      .filter((i) => i.tenantId === tenant.id)
+                      .reduce((v, i) => v + balance(s, i), 0),
+                  )}
+                </strong>
+              </p>
+            )}
             <div className="button-row">
               <Button
                 onClick={() => {
@@ -985,19 +1025,21 @@ function BedDetails({ id, onClose }: { id: string; onClose: () => void }) {
               >
                 Transfer
               </Button>
-              {!staff && <Button
-                variant="outline"
-                onClick={() =>
-                  open({
-                    kind: "payment",
-                    id: s.invoices.find(
-                      (i) => i.tenantId === tenant.id && balance(s, i) > 0,
-                    )?.id,
-                  })
-                }
-              >
-                Collect rent
-              </Button>}
+              {!staff && (
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    open({
+                      kind: "payment",
+                      id: s.invoices.find(
+                        (i) => i.tenantId === tenant.id && balance(s, i) > 0,
+                      )?.id,
+                    })
+                  }
+                >
+                  Collect rent
+                </Button>
+              )}
               <Button
                 variant="danger"
                 onClick={() => open({ kind: "checkout", id: tenant.id })}
@@ -1009,9 +1051,11 @@ function BedDetails({ id, onClose }: { id: string; onClose: () => void }) {
         )}
         {status === "Available" && (
           <div className="button-row">
-            {!staff && <Button onClick={() => open({ kind: "tenant", bedId: id })}>
-              <UserPlus size={15} /> Assign tenant
-            </Button>}
+            {!staff && (
+              <Button onClick={() => open({ kind: "tenant", bedId: id })}>
+                <UserPlus size={15} /> Assign tenant
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={() => open({ kind: "reservation", bedId: id })}

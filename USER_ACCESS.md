@@ -13,6 +13,8 @@ Firebase Authentication sends the verification and password reset messages. No R
 
 ## Add a person
 
+New residents added with an email now receive Tenant access and a Firebase password-setup email automatically once the Netlify server is configured. See [Automatic resident login setup](TENANT_LOGIN_SETUP.md). Their login uses the email saved on the resident record; they should use the emailed setup link rather than creating a second account. The manual Team form below remains available for staff, admins and existing residents.
+
 1. Open **Team & access**.
 2. Enter their **email address** and choose **Super admin**, **Admin**, **Staff**, or **Tenant**. A name is optional. For Tenant access, select their saved resident record.
 3. Select **Save access**. This records access immediately; it does not send an invitation email.
@@ -23,6 +25,8 @@ No Firebase account needs to be created manually. No user ID or workspace code i
 To add another super admin, choose **Super admin** in step 2. They will have full access, including team management, backup import and clearing PG records. The original owner's access cannot be removed from the team list. Use Edit or Remove on other entries to change access.
 
 ## First sign-in
+
+Residents whose accounts were created automatically should open their emailed password-setup link, choose a password, then sign in. The steps below apply to people added manually through Team & access who do not have an account yet.
 
 1. Open the app and choose **First time? Set password**.
 2. Enter the same email the owner added, choose a password and confirm it.

@@ -57,7 +57,7 @@ export function FirebaseSignIn() {
       const code = (cause as { code?: string }).code;
       setError(
         code === "auth/email-already-in-use"
-          ? "This email already has a password. Sign in or choose Forgot password."
+          ? "This email already has an account. Use the password-setup link from your PG, sign in, or choose Forgot password."
           : code === "auth/weak-password" ||
               code === "auth/password-does-not-meet-requirements"
             ? "Choose a stronger password that meets the account's password requirements."

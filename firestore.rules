@@ -109,6 +109,15 @@ service cloud.firestore {
         && request.resource.data.number == resource.data.number + 1;
     }
 
+    // Only the server creates or updates invitation status and rate records.
+    // Super admins can remove them when clearing the PG's test data.
+    match /accounts/{accountUid}/tenantOnboarding/{residentId} {
+      allow read, delete: if superAdmin(accountUid);
+    }
+    match /accounts/{accountUid}/control/tenantInviteRate {
+      allow read, delete: if superAdmin(accountUid);
+    }
+
     match /accounts/{accountUid}/portal/{residentId} {
       allow get: if worker(accountUid)
         || (hasRole(accountUid, 'tenant') && residentId == tenantId());

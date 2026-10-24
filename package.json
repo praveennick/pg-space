@@ -12,14 +12,15 @@
     "deploy:rules": "firebase deploy --project lucky-luxury-mens-pg --only firestore:rules",
     "check:hosting": "firebase deploy --project lucky-luxury-mens-pg --only hosting --dry-run",
     "deploy:hosting": "npm run build:firebase && firebase deploy --project lucky-luxury-mens-pg --only hosting",
-    "build": "tsc -b && vite build",
-    "build:firebase": "tsc -b && vite build --mode firebase",
+    "build": "tsc -b && tsc -p tsconfig.functions.json && vite build",
+    "build:firebase": "tsc -b && tsc -p tsconfig.functions.json && vite build --mode firebase",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
     "test:rules": "node scripts/test-access-rules.mjs",
+    "test:auth": "node scripts/test-tenant-auth.mjs --start",
     "test:e2e": "playwright test",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b && tsc -p tsconfig.functions.json"
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",
@@ -35,6 +36,7 @@
     "dexie": "^4.4.6",
     "dexie-react-hooks": "^4.4.0",
     "firebase": "^13.1.0",
+    "firebase-admin": "^14.5.0",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.61.0",
     "motion": "^14.5.0",

@@ -2,6 +2,8 @@
 
 For email-based Super admin, Admin, Staff and Tenant accounts, see [User access setup](USER_ACCESS.md). Existing owners keep their PG; added users set their password and verify their email in the app. Publish the updated Firestore rules before testing team access.
 
+For automatic resident account creation and password-setup emails, configure the Netlify function using [Automatic resident login setup](TENANT_LOGIN_SETUP.md). It needs a private Firebase server credential; the public web configuration alone cannot create other users' accounts.
+
 Firebase mode is opt-in. The normal `npm run dev` command still opens the local IndexedDB demo. `npm run dev:firebase` opens a separate, signed-in Firestore workspace connected to the `lucky-luxury-mens-pg` web app using `.env.firebase.local`. The web config is a public project identifier, not an administrator credential. Analytics is intentionally not initialized.
 
 ## Netlify deployment
