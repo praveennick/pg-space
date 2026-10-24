@@ -43,12 +43,14 @@ export function Modal({
   children,
   onClose,
   wide = false,
+  className,
 }: {
   title: string;
   description?: string;
   children: ReactNode;
   onClose: () => void;
   wide?: boolean;
+  className?: string;
 }) {
   return (
     <Dialog.Root
@@ -59,7 +61,7 @@ export function Modal({
     >
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
-        <Dialog.Content className={cn("dialog", wide && "dialog-wide")}>
+        <Dialog.Content className={cn("dialog", wide && "dialog-wide", className)}>
           <div className="dialog-head">
             <div>
               <Dialog.Title>{title}</Dialog.Title>

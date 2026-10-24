@@ -449,6 +449,32 @@ export class ApplicationService {
         .forEach((n) => (n.read = true));
     });
   }
+  async recordReminderOpened(
+    tenantId: string,
+    template: string,
+    phone: string,
+    message: string,
+  ) {
+    return this.store.transact((s) => {
+      const tenant = s.tenants.find((t) => t.id === tenantId);
+      if (!tenant) throw new Error("Tenant not found");
+      const detail = `${tenant.name} · ${template} • ${phone || "mobile number not saved"}`;
+      s.audit.push({
+        ...stamp(),
+        action: "Opened WhatsApp",
+        detail,
+      });
+      if (s.settings[0]?.notifications) {
+        s.notifications.push({
+          ...stamp(),
+          title: "Opened WhatsApp",
+          message: `Prepared a ${template.toLowerCase()} reminder for ${tenant.name}. ${message.slice(0, 140)}${message.length > 140 ? "…" : ""}`,
+          href: `/app/tenants/${tenant.id}`,
+          read: false,
+        });
+      }
+    });
+  }
   async export() {
     return {
       version: 2,

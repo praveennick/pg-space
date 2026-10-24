@@ -1,6 +1,13 @@
 ﻿import { useState } from "react";
 import { useLocation, useSearchParams } from "react-router-dom";
-import { Plus, Download, CalendarDays, Wallet, Search } from "lucide-react";
+import {
+  Plus,
+  Download,
+  CalendarDays,
+  Wallet,
+  Search,
+  Send,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useApp } from "../hooks/useApp";
 import {
@@ -12,11 +19,21 @@ import {
 } from "../domain/calculations";
 import { rupees, monthNow } from "../domain/models";
 import { Button, Badge, Empty, Modal, Field } from "../components/ui";
-import { exportCsv, receipt } from "../services/export";
+import { downloadReceiptBlob, exportCsv, receipt, receiptPdf } from "../services/export";
 import { service } from "../data";
 import { depositActionLabel, rentStatusLabel } from "../components/labels";
 import { displayDate, displayMonth } from "../domain/dates";
 import { MonthInput } from "../components/MonthInput";
+import { WhatsAppReminder } from "../components/WhatsAppReminder";
+import { normalizeWhatsAppNumber, validateWhatsAppNumber } from "../services/reminders";
+
+type ReceiptShare = {
+  file: File;
+  paymentId: string;
+  tenantName: string;
+  phone: string;
+};
+
 export default function Finance() {
   const { s, open } = useApp(),
     location = useLocation(),
@@ -28,7 +45,12 @@ export default function Finance() {
     [q, setQ] = useState(""),
     [page, setPage] = useState(1),
     [billing, setBilling] = useState(false),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [preparingShare, setPreparingShare] = useState<string | null>(null),
+    [receiptShare, setReceiptShare] = useState<ReceiptShare | null>(null),
+    [shareBusy, setShareBusy] = useState(false),
+    [shareError, setShareError] = useState(""),
+    [receiptDownloaded, setReceiptDownloaded] = useState(false);
   const invoices = s.invoices.filter((i) => i.month === month),
     billed = invoices.reduce((v, i) => v + i.amount, 0),
     collected = invoices.reduce((v, i) => v + invoicePaid(s, i.id), 0),
@@ -76,6 +98,55 @@ export default function Finance() {
             ]),
           ],
     );
+
+  const prepareReceiptShare = async (paymentId: string) => {
+    const payment = s.payments.find((p) => p.id === paymentId);
+    if (!payment) {
+      toast.error("No payment record found for this receipt.");
+      return;
+    }
+    setPreparingShare(paymentId);
+    try {
+      const pdfBlob = await receiptPdf(s, payment);
+      const tenant = s.tenants.find((item) => item.id === payment.tenantId);
+      setReceiptShare({
+        file: new File([pdfBlob], `receipt-${payment.id.slice(0, 8)}.pdf`, {
+          type: "application/pdf",
+        }),
+        paymentId: payment.id,
+        tenantName: tenant?.name || "Resident",
+        phone: tenant?.phone || "",
+      });
+      setReceiptDownloaded(false);
+      setShareError("");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not prepare the PDF.");
+    } finally {
+      setPreparingShare(null);
+    }
+  };
+
+  const shareReceipt = async () => {
+    if (!receiptShare || typeof navigator.share !== "function") return;
+    setShareBusy(true);
+    setShareError("");
+    try {
+      // Call share immediately from this tap; generating the PDF beforehand
+      // would use up the browser's required user activation.
+      await navigator.share({
+        files: [receiptShare.file],
+        title: `Payment receipt for ${receiptShare.tenantName}`,
+      });
+      toast.success("PDF handed to your selected app.");
+      setReceiptShare(null);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setShareError("Your phone could not share this PDF. Download it and attach it in WhatsApp.");
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
   return (
     <>
       <div className="page-heading">
@@ -348,6 +419,12 @@ export default function Finance() {
                             >
                               Collect
                             </Button>
+                            <WhatsAppReminder
+                              tenantId={i.tenantId}
+                              invoiceId={i.id}
+                              label="WhatsApp"
+                              className="reminder-inline"
+                            />
                           </>
                         )}
                       </td>
@@ -448,9 +525,21 @@ export default function Finance() {
                         <td data-label="Date">{displayDate(p.date)}</td>
                         <td data-label="Method">{p.method}</td>
                         <td data-label="">
-                          <Button variant="ghost" onClick={() => receipt(s, p)}>
-                            <Download size={14} /> PDF
-                          </Button>
+                          <div className="button-row compact-actions">
+                            <Button
+                              variant="ghost"
+                              onClick={() => receipt(s, p)}
+                            >
+                              <Download size={14} /> PDF
+                            </Button>
+                            <Button
+                              variant="outline"
+                              disabled={preparingShare === p.id}
+                              onClick={() => void prepareReceiptShare(p.id)}
+                            >
+                              <Send size={14} /> {preparingShare === p.id ? "Preparing PDF…" : "Share receipt PDF"}
+                            </Button>
+                          </div>
                           {left > 0 && (
                             <Button
                               onClick={() =>
@@ -568,6 +657,47 @@ export default function Finance() {
             >
               Create rent bills
             </Button>
+          </div>
+        </Modal>
+      )}
+      {receiptShare && (
+        <Modal
+          title="Share payment receipt"
+          description={`PDF for ${receiptShare.tenantName}. Choose WhatsApp and select the right chat in your phone's share menu.`}
+          onClose={() => setReceiptShare(null)}
+        >
+          <div className="dialog-body receipt-share-dialog">
+            <p><strong>{receiptShare.file.name}</strong></p>
+            {typeof navigator.share === "function" &&
+            typeof navigator.canShare === "function" &&
+            navigator.canShare({ files: [receiptShare.file] }) ? (
+              <Button disabled={shareBusy} onClick={() => void shareReceipt()}>
+                <Send size={16} /> {shareBusy ? "Opening share menu…" : "Share PDF attachment"}
+              </Button>
+            ) : (
+              <p>
+                {window.isSecureContext
+                  ? "Your browser cannot share PDF files directly. Download the PDF and attach it in WhatsApp."
+                  : "Direct PDF sharing needs HTTPS or localhost. Download the PDF and attach it in WhatsApp from this HTTP address."}
+              </p>
+            )}
+            {shareError && <p role="alert" className="error">{shareError}</p>}
+            <Button variant="outline" onClick={() => {
+              downloadReceiptBlob(receiptShare.file, receiptShare.paymentId);
+              setReceiptDownloaded(true);
+            }}>
+              <Download size={16} /> Download PDF
+            </Button>
+            {receiptDownloaded && validateWhatsAppNumber(receiptShare.phone) && (
+              <a
+                className="btn btn-outline"
+                href={`https://wa.me/${normalizeWhatsAppNumber(receiptShare.phone)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open {receiptShare.tenantName}'s WhatsApp chat to attach the PDF
+              </a>
+            )}
           </div>
         </Modal>
       )}

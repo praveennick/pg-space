@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getVerificationErrors } from "../src/components/Editors";
+import { getVerificationErrors } from "../src/domain/verification";
 
 describe("resident verification validation", () => {
   it("allows a verified resident once all required fields are filled", () => {

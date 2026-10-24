@@ -9,6 +9,14 @@ Firebase mode is opt-in. The normal `npm run dev` command still opens the local 
 3. The Firebase CLI is installed in this project's development dependencies, so you do not need a global `firebase` command. From the project folder, run `npm install` if needed, then `npm run firebase:login` and `npm run firebase:projects` to confirm access to `lucky-luxury-mens-pg`. Review any existing Firestore rules in the Firebase Console before deploying: deployment replaces the active rules with the included [firestore.rules](firestore.rules). Run `npm run check:rules` to validate the deployment, then `npm run deploy:rules`. Both commands target **Firestore rules only**. Review the console's active rules afterward. The frontend does **not** deploy rules by itself.
 4. Start the cloud workspace with `npm run dev:firebase`, or make a production bundle with `npm run build:firebase`. Sign in with the owner account. The first sign-in creates an empty property named **My PG**; update its details in Settings.
 
+## Share receipt PDFs from a phone
+
+The **Share receipt PDF** action creates a PDF on the device and passes it to the phone's share menu. Choose WhatsApp, then choose the recipient and confirm sending. No PDF is uploaded to Firebase Storage. The app cannot silently select a WhatsApp chat or send the attachment without your confirmation.
+
+Mobile browsers require HTTPS for this file-sharing feature. A Vite URL such as `http://192.168.1.17:5173` cannot use it. Firebase **Hosting** can serve this app over HTTPS on the project's `web.app` domain using the Spark plan's no-cost Hosting quota; it is a separate product from Firebase **Storage** and does not require enabling Storage. The hosting configuration serves the Firebase-mode build and routes `/app/...` pages to the React app.
+
+After reviewing the build and confirming the Firestore rules are active, run `npm run build:firebase`, `npm run check:hosting`, and `npm run deploy:hosting`. Open the resulting HTTPS URL on the phone, sign in, then tap **Share receipt PDF → Share PDF attachment → WhatsApp**. Hosting makes the app reachable on the internet, so use the signed-in Firebase mode for real records and keep the Authentication and Firestore rules enabled. The share menu only offers apps installed on the device that accept PDF files.
+
 Cloud records live under `accounts/{firebaseUid}/records/{entity}/items/{recordId}`. The rules restrict each account to its own records; another Firebase user cannot see that account's PG. Firebase mode does not upload resident photos or identity document files. It shows initials in place of photos. The local demo still supports browser-only photos.
 
 ## Existing local records

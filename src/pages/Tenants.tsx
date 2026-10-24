@@ -15,6 +15,7 @@ import { rupees } from "../domain/models";
 import { Button, Badge, Empty, Modal } from "../components/ui";
 import { rentStatusLabel } from "../components/labels";
 import { TenantAvatar } from "../components/TenantPhoto";
+import { WhatsAppReminder } from "../components/WhatsAppReminder";
 export default function Tenants() {
   const { s, open } = useApp(),
     { id } = useParams(),
@@ -317,6 +318,11 @@ export default function Tenants() {
                   >
                     <Pencil size={15} /> Edit details
                   </Button>
+                  <WhatsAppReminder
+                    tenantId={tenant.id}
+                    label="WhatsApp reminder"
+                    className="reminder-inline"
+                  />
                   <Button
                     variant="outline"
                     onClick={() => open({ kind: "deposit", id: tenant.id })}

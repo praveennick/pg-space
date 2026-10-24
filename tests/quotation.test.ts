@@ -7,6 +7,7 @@ import {
 } from "../src/domain/quotation";
 import { LocalStore } from "../src/data/local";
 import { ApplicationService } from "../src/services/application";
+import type { Snapshot, Entities } from "../src/domain/models";
 
 const addImageMock = vi.fn();
 const saveMock = vi.fn();
@@ -31,6 +32,7 @@ vi.mock("jspdf", () => {
     rect = vi.fn();
     line = vi.fn();
     addPage = vi.fn();
+    output = vi.fn(() => new Blob(["%PDF-test"], { type: "application/pdf" }));
     constructor() {}
   }
 
@@ -152,7 +154,7 @@ describe("quotation totals", () => {
   });
 
   it("adds the branded letterhead to payment receipts", async () => {
-    const { receipt } = await import("../src/services/export");
+    const { receiptPdf } = await import("../src/services/export");
     const payment = {
       id: "pay_123",
       tenantId: "tenant_1",
@@ -252,9 +254,9 @@ describe("quotation totals", () => {
           reducedMotion: false,
         },
       ],
-    } as any;
+    } as unknown as Snapshot;
 
-    await receipt(snapshot as any, payment as any);
+    await receiptPdf(snapshot, payment as Entities["payments"][number]);
 
     expect(addImageMock).toHaveBeenCalledWith(
       expect.anything(),

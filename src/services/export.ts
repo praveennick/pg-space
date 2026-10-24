@@ -45,7 +45,7 @@ export function exportCsv(name: string, rows: (string | number)[][]) {
   );
 }
 
-export async function receipt(s: Snapshot, p: Entities["payments"]) {
+export async function receiptPdf(s: Snapshot, p: Entities["payments"]) {
   const [{ jsPDF }, header, footer] = await Promise.all([
     import("jspdf"),
     loadImage(headerUrl),
@@ -173,5 +173,18 @@ export async function receipt(s: Snapshot, p: Entities["payments"]) {
     align: "right",
   });
 
-  pdf.save(`receipt-${p.id.slice(0, 8)}.pdf`);
+  return pdf.output("blob");
+}
+
+export function downloadReceiptBlob(pdfBlob: Blob, paymentId: string) {
+  const url = URL.createObjectURL(pdfBlob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `receipt-${paymentId.slice(0, 8)}.pdf`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export async function receipt(s: Snapshot, p: Entities["payments"]) {
+  downloadReceiptBlob(await receiptPdf(s, p), p.id);
 }

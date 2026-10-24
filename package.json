@@ -10,6 +10,8 @@
     "firebase:projects": "firebase projects:list",
     "check:rules": "firebase deploy --project lucky-luxury-mens-pg --only firestore:rules --dry-run",
     "deploy:rules": "firebase deploy --project lucky-luxury-mens-pg --only firestore:rules",
+    "check:hosting": "firebase deploy --project lucky-luxury-mens-pg --only hosting --dry-run",
+    "deploy:hosting": "npm run build:firebase && firebase deploy --project lucky-luxury-mens-pg --only hosting",
     "build": "tsc -b && vite build",
     "build:firebase": "tsc -b && vite build --mode firebase",
     "lint": "eslint .",

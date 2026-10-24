@@ -46,6 +46,7 @@ import { displayDate, displayMonth } from "../domain/dates";
 import { DateInput } from "../components/DateInput";
 import { Button, Badge, SectionTitle } from "../components/ui";
 import { exportCsv } from "../services/export";
+import { WhatsAppReminder } from "../components/WhatsAppReminder";
 export default function Dashboard({ reports = false }: { reports?: boolean }) {
   const { s, open } = useApp(),
     [period, setPeriod] = useState("Current Month"),
@@ -575,23 +576,33 @@ export default function Dashboard({ reports = false }: { reports?: boolean }) {
             sub="Things to check today"
           />
           <div className="attention-list">
-            {pending.slice(0, 2).map((i) => (
-              <Link key={i.id} to="/app/payments?status=Outstanding">
-                <span className="attention-icon amber">
-                  <Clock3 size={18} />
-                </span>
-                <div>
-                  <strong>{rupees(balance(s, i))} rent pending</strong>
-                  <p>
-                    {s.tenants
-                      .find((t) => t.id === i.tenantId)
-                      ?.name.replace(" (Demo)", "")}{" "}
-                    · {displayMonth(i.month)}
-                  </p>
+            {pending.slice(0, 2).map((i) => {
+              const tenant = s.tenants.find((t) => t.id === i.tenantId);
+              return (
+                <div className="attention-item" key={i.id}>
+                  <Link to="/app/payments?status=Outstanding">
+                    <span className="attention-icon amber">
+                      <Clock3 size={18} />
+                    </span>
+                    <div>
+                      <strong>{rupees(balance(s, i))} rent pending</strong>
+                      <p>
+                        {tenant?.name.replace(" (Demo)", "")} ·{" "}
+                        {displayMonth(i.month)}
+                      </p>
+                    </div>
+                    <ArrowUpRight size={15} />
+                  </Link>
+                  <WhatsAppReminder
+                    tenantId={i.tenantId}
+                    invoiceId={i.id}
+                    label="Remind"
+                    variant="ghost"
+                    className="reminder-inline"
+                  />
                 </div>
-                <ArrowUpRight size={15} />
-              </Link>
-            ))}
+              );
+            })}
             {s.tickets
               .filter((t) => !["Closed", "Resolved"].includes(t.status))
               .slice(0, 1)

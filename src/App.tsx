@@ -37,12 +37,13 @@ import {
   CircleHelp,
   FileText,
   LogOut,
+  MessageSquareText,
 } from "lucide-react";
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
 import { useData } from "./hooks/useData";
 import { firebaseStore, store } from "./data";
-import { initialize, initializeCloud } from "./data/seed";
+import { initialize } from "./data/seed";
 import { cloudAuth, firebaseMode } from "./data/firebase";
 import { FirebaseSignIn } from "./components/FirebaseSignIn";
 
@@ -52,6 +53,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Rooms = lazy(() => import("./pages/Rooms"));
 const Tenants = lazy(() => import("./pages/Tenants"));
 const Finance = lazy(() => import("./pages/Finance"));
+const RemindersPage = lazy(() => import("./pages/Reminders"));
 const Operations = lazy(() => import("./pages/Operations"));
 const SettingsPage = lazy(() => import("./pages/Settings"));
 const Quotations = lazy(() => import("./pages/Quotations"));
@@ -62,6 +64,7 @@ const nav = [
   ["tenants", "Tenants", Users],
   ["reservations", "Reservations", CalendarDays],
   ["payments", "Payments", Wallet],
+  ["reminders", "Reminders", MessageSquareText],
   ["quotations", "Quotations", FileText],
   ["expenses", "Expenses", Receipt],
   ["maintenance", "Repairs", Wrench],
@@ -399,6 +402,7 @@ function Shell() {
                 <Route path="rooms/:id?" element={<Rooms />} />
                 <Route path="tenants/:id?" element={<Tenants />} />
                 <Route path="payments" element={<Finance />} />
+                <Route path="reminders" element={<RemindersPage />} />
                 <Route path="quotations" element={<Quotations />} />
                 <Route path="expenses" element={<Finance />} />
                 <Route path="reports" element={<Dashboard reports />} />
@@ -485,10 +489,11 @@ function Shell() {
   );
 }
 function WorkspaceApp() {
-  const [ready, setReady] = useState(false),
+  const [ready, setReady] = useState(firebaseMode),
     [error, setError] = useState("");
   useEffect(() => {
-    (firebaseMode ? initializeCloud(store) : initialize(store))
+    if (firebaseMode) return;
+    initialize(store)
       .then(() => setReady(true))
       .catch((e) => setError(String(e)));
   }, []);
