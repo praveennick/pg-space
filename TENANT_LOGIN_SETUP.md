@@ -54,6 +54,13 @@ If server configuration or email sending fails, the resident remains saved and t
 
 Sending is limited to 30 requests per PG and 3 per resident per hour. Status records are stored under `accounts/{owner}/tenantOnboarding/{tenant}`. They contain email, account ID, timestamps and request status, never passwords or action links. No provider delivery status is available from Firebase's password-reset API.
 
+## Deployment troubleshooting
+
+- **HTTP 502 / `ERR_REQUIRE_ESM` mentioning `jwks-rsa` and `jose`:** the function crashed before handling the request. This project pins Firebase Admin to 13.10.0, which loads under Lambda's default module restrictions. Redeploy from the updated repository and lockfile. `npm run check:functions-runtime` is now a build gate that reproduces those restrictions locally.
+- **Reset says permission denied:** publish the latest rules with `npm run deploy:rules`. The reset must read/delete invitation metadata too; earlier rules did not permit those paths. All collections are read before deletion starts, so a permission failure at that stage deletes nothing.
+- **A webpage is returned for the email endpoint:** confirm Netlify deployed `tenant-login` and used the current `netlify.toml`; uploading only the `dist` folder does not deploy a server function. `node scripts/check-tenant-login-deployment.mjs` checks the public routes using GET only and does not send mail.
+- **Manually created owner account:** a Firebase Authentication user can remain the original PG owner if it already owns the saved property. The word `admin` in its email does not assign a role. Use an inbox you control for password recovery and any email-based invitations.
+
 Account identity is not silently transferred when an existing resident's contact email is edited. If that resident already has access under a different email, a super admin must review/remove the old Tenant assignment before inviting the new email. Other roles are never automatically replaced.
 
 References: [Firebase Admin account creation](https://firebase.google.com/docs/auth/admin/manage-users), [Firebase account emails](https://firebase.google.com/docs/auth/web/manage-users), [Firebase email template fields](https://support.google.com/firebase/answer/7000714).

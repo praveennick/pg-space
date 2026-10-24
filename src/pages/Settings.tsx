@@ -249,13 +249,15 @@ export default function Settings() {
           >
             <Download size={16} /> Download backup
           </Button>
-          {role === "super_admin" && <Button
-            variant="outline"
-            disabled={busy}
-            onClick={() => file.current?.click()}
-          >
-            <Upload size={16} /> Import backup
-          </Button>}
+          {role === "super_admin" && (
+            <Button
+              variant="outline"
+              disabled={busy}
+              onClick={() => file.current?.click()}
+            >
+              <Upload size={16} /> Import backup
+            </Button>
+          )}
           {!firebaseMode && role === "super_admin" && (
             <Button
               variant="outline"
@@ -265,13 +267,15 @@ export default function Settings() {
               <RotateCcw size={16} /> Reset demo data
             </Button>
           )}
-          {role === "super_admin" && <Button
-            variant="danger"
-            disabled={busy}
-            onClick={() => setClear(true)}
-          >
-            <RotateCcw size={16} /> Clear all records
-          </Button>}
+          {role === "super_admin" && (
+            <Button
+              variant="danger"
+              disabled={busy}
+              onClick={() => setClear(true)}
+            >
+              <RotateCcw size={16} /> Clear all records
+            </Button>
+          )}
           <input
             ref={file}
             hidden
@@ -343,8 +347,9 @@ export default function Settings() {
             <p>
               This permanently removes rooms, beds, residents, rent bills,
               payments, quotations, and other PG records. Property settings
-              return to the default “My PG”. Sign-in accounts and team access remain.
-              Download a backup first if you may need these records later.
+              return to the default “My PG”. Sign-in accounts and team access
+              remain. Download a backup first if you may need these records
+              later.
             </p>
             <Field label="Type CLEAR to confirm">
               <input
@@ -361,15 +366,15 @@ export default function Settings() {
                 try {
                   if (firebaseMode) await firebaseStore!.clearAllRecords();
                   else await store.replace(emptyPropertyData());
-                  await queryClient.invalidateQueries({ queryKey: ["property"] });
+                  await queryClient.invalidateQueries({
+                    queryKey: ["property"],
+                  });
                   setClear(false);
                   setClearConfirmation("");
                   toast.success("All PG records cleared");
                   navigate("/app/dashboard");
                 } catch (error) {
-                  toast.error(
-                    `${(error as Error).message} If some records were cleared, try again.`,
-                  );
+                  toast.error((error as Error).message, { duration: 10000 });
                 } finally {
                   setBusy(false);
                 }

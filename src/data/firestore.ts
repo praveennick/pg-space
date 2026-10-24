@@ -19,6 +19,7 @@ import type { DataStore, Repository } from "./contracts";
 import { cloudDb } from "./firebase";
 import { emptyPropertyData } from "./seed";
 import type { Role } from "../auth/access";
+import { resetFailureMessage } from "../services/resetErrors";
 
 const db = () => {
   if (!cloudDb) throw new Error("Firebase is not configured.");
@@ -199,51 +200,70 @@ export class FirestoreStore implements DataStore {
   async clearAllRecords(): Promise<void> {
     if (this.role !== "super_admin")
       throw new Error("Only the super admin can clear PG records.");
-    const owner = this.owner();
-    const sessionRevision = this.sessionRevision;
-    const snapshots = await Promise.all(
-      names.map((name) => getDocs(this.records(name))),
-    );
-    const [portal, members, onboarding, inviteRate] = await Promise.all([
-      getDocs(collection(db(), "accounts", owner, "portal")),
-      getDocs(collection(db(), "accounts", owner, "members")),
-      getDocs(collection(db(), "accounts", owner, "tenantOnboarding")),
-      getDoc(doc(db(), "accounts", owner, "control", "tenantInviteRate")),
-    ]);
-    if (owner !== this.ownerUid || sessionRevision !== this.sessionRevision)
-      throw new Error("The signed-in account changed. Please reload.");
+    let deletedRecords = 0;
+    let writeAttempted = false;
+    try {
+      const owner = this.owner();
+      const sessionRevision = this.sessionRevision;
+      const snapshots = await Promise.all(
+        names.map((name) => getDocs(this.records(name))),
+      );
+      const [portal, members, onboarding, inviteRate] = await Promise.all([
+        getDocs(collection(db(), "accounts", owner, "portal")),
+        getDocs(collection(db(), "accounts", owner, "members")),
+        getDocs(collection(db(), "accounts", owner, "tenantOnboarding")),
+        getDoc(doc(db(), "accounts", owner, "control", "tenantInviteRate")),
+      ]);
+      if (owner !== this.ownerUid || sessionRevision !== this.sessionRevision)
+        throw new Error("The signed-in account changed. Please reload.");
 
-    // Keep the property settings document until the final write so the app
-    // remains usable while a large account is cleared in several batches.
-    const records = snapshots.flatMap((snapshot, index) =>
-      snapshot.docs
-        .filter((item) => names[index] !== "settings" || item.id !== "property")
-        .map((item) => item.ref),
-    );
-    records.push(...portal.docs.map((item) => item.ref));
-    records.push(...members.docs.map((item) => item.ref));
-    records.push(...onboarding.docs.map((item) => item.ref));
-    if (inviteRate.exists()) records.push(inviteRate.ref);
-    const version = this.version();
-    const apply = async (items: DocumentReference[], finish = false) => {
-      await runTransaction(db(), async (transaction) => {
-        const current = await transaction.get(version);
-        if (owner !== this.ownerUid || sessionRevision !== this.sessionRevision)
-          throw new Error("The signed-in account changed. Please reload.");
-        for (const item of items) transaction.delete(item);
-        if (finish) {
-          const settings = emptyPropertyData().settings[0];
-          transaction.set(doc(this.records("settings"), settings.id), settings);
-        }
-        transaction.set(version, {
-          number: Number(current.data()?.number || 0) + 1,
+      // Keep the property settings document until the final write so the app
+      // remains usable while a large account is cleared in several batches.
+      const records = snapshots.flatMap((snapshot, index) =>
+        snapshot.docs
+          .filter(
+            (item) => names[index] !== "settings" || item.id !== "property",
+          )
+          .map((item) => item.ref),
+      );
+      records.push(...portal.docs.map((item) => item.ref));
+      records.push(...members.docs.map((item) => item.ref));
+      records.push(...onboarding.docs.map((item) => item.ref));
+      if (inviteRate.exists()) records.push(inviteRate.ref);
+      const version = this.version();
+      const apply = async (items: DocumentReference[], finish = false) => {
+        writeAttempted = true;
+        await runTransaction(db(), async (transaction) => {
+          const current = await transaction.get(version);
+          if (
+            owner !== this.ownerUid ||
+            sessionRevision !== this.sessionRevision
+          )
+            throw new Error("The signed-in account changed. Please reload.");
+          for (const item of items) transaction.delete(item);
+          if (finish) {
+            const settings = emptyPropertyData().settings[0];
+            transaction.set(
+              doc(this.records("settings"), settings.id),
+              settings,
+            );
+          }
+          transaction.set(version, {
+            number: Number(current.data()?.number || 0) + 1,
+          });
         });
-      });
-    };
+        deletedRecords += items.length;
+      };
 
-    for (let index = 0; index < records.length; index += 200)
-      await apply(records.slice(index, index + 200));
-    await apply([], true);
+      for (let index = 0; index < records.length; index += 200)
+        await apply(records.slice(index, index + 200));
+      await apply([], true);
+    } catch (error) {
+      throw new Error(
+        resetFailureMessage(error, deletedRecords, writeAttempted),
+        { cause: error },
+      );
+    }
   }
 
   subscribe(listener: () => void): () => void {
