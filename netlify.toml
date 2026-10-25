@@ -23,6 +23,12 @@ status = 200
 force = true
 
 [[redirects]]
+from = "/api/account-email"
+to = "/.netlify/functions/account-email"
+status = 200
+force = true
+
+[[redirects]]
 from = "/*"
 to = "/index.html"
 status = 200

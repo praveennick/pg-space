@@ -85,7 +85,9 @@ export async function handleAccountAction(
     const role =
       actor.uid === input.ownerUid
         ? "super_admin"
-        : actor.email_verified && actorGrant?.ownerUid === input.ownerUid
+        : actor.email_verified &&
+            actorGrant?.ownerUid === input.ownerUid &&
+            actorGrant.revoked !== true
           ? actorGrant.role
           : "";
     if (input.action === "ticket" || input.action === "session") {
@@ -110,6 +112,7 @@ export async function handleAccountAction(
           );
           if (
             grant?.role !== "tenant" ||
+            grant.revoked === true ||
             grant.ownerUid !== input.ownerUid ||
             grant.tenantId !== tenantId
           )
@@ -156,6 +159,7 @@ export async function handleAccountAction(
           ]);
         if (
           freshGrant.data()?.role !== "tenant" ||
+          freshGrant.data()?.revoked === true ||
           freshGrant.data()?.ownerUid !== input.ownerUid ||
           freshGrant.data()?.tenantId !== tenantId ||
           profile.data()?.active !== true ||
@@ -281,6 +285,7 @@ export async function handleAccountAction(
               : ["super_admin", "admin", "staff"];
           if (
             currentActor?.ownerUid !== input.ownerUid ||
+            currentActor.revoked === true ||
             !permitted.includes(String(currentActor.role))
           )
             throw new Rejected(403, "Your permission changed. Sign in again.");
@@ -308,7 +313,9 @@ export async function handleAccountAction(
               "Check out the resident before removing their login.",
             );
         }
-        // Keep the assignment until Auth deletion succeeds, so a failed cleanup can be retried.
+        // Deny every role immediately, even if Firebase Auth deletion fails.
+        // Keep the revoked entry only so the super admin can retry cleanup.
+        tx.set(target, { revoked: true }, { merge: true });
         if (grant.role === "tenant")
           tx.set(
             db.doc(`accounts/${input.ownerUid}/portal/${grant.tenantId}`),

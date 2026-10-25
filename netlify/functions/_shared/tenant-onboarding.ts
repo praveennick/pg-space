@@ -49,6 +49,11 @@ export function assertTenantAccess(
   ownerUid: string,
   tenantId: string,
 ) {
+  if (existing?.revoked === true)
+    throw new Failure(
+      403,
+      "This login was removed. A super admin must explicitly add access again before sending a setup email.",
+    );
   if (
     existing &&
     (existing.ownerUid !== ownerUid ||
@@ -107,6 +112,7 @@ export async function handleTenantOnboarding(
     const permitted = (assignment?: Record<string, unknown>) =>
       actor.uid === ownerUid ||
       (actor.email_verified === true &&
+        assignment?.revoked !== true &&
         assignment?.ownerUid === ownerUid &&
         ["admin", "super_admin"].includes(String(assignment.role)));
     const actorGrant =

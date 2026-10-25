@@ -205,7 +205,7 @@ export default function Settings() {
             Reduce animations
           </label>
           <p className="muted">
-            Choose Light, Dark, or System from the theme menu in the header.
+            Use the sun or moon button in the header to switch between light and dark mode.
           </p>
           <Button disabled={busy} type="submit">
             <Save size={16} /> Save settings

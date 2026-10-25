@@ -17,6 +17,10 @@ const api = vi.hoisted(() => ({
   reset: vi.fn(),
   verify: vi.fn(),
   signout: vi.fn(),
+  link: vi.fn(),
+}));
+vi.mock("../src/services/accountEmail", () => ({
+  requestAccountEmail: api.link,
 }));
 vi.mock("../src/data/firebase", () => ({ cloudAuth: api.auth, cloudDb: null }));
 vi.mock("firebase/auth", () => ({
@@ -33,56 +37,47 @@ beforeEach(() => {
   api.signin.mockResolvedValue({});
   api.reset.mockResolvedValue(undefined);
   api.verify.mockResolvedValue(undefined);
+  api.link.mockResolvedValue(
+    "If this email has active PG access, a password link will be sent. A password reset does not restore removed PG access.",
+  );
 });
 afterEach(cleanup);
 
-function fillSetup(password = "TestPassword123", confirm = password) {
+function fillSetup() {
   fireEvent.click(
     screen.getByRole("button", { name: "First time? Set password" }),
   );
   fireEvent.change(screen.getByLabelText("Email address"), {
     target: { value: "Person@Example.com" },
   });
-  fireEvent.change(
-    screen.getByLabelText("New password (at least 8 characters)"),
-    { target: { value: password } },
-  );
-  fireEvent.change(screen.getByLabelText("Confirm password"), {
-    target: { value: confirm },
-  });
-  fireEvent.click(
-    screen.getByRole("button", { name: "Set password & continue" }),
-  );
+  fireEvent.click(screen.getByRole("button", { name: "Send password link" }));
 }
 
 describe("email and password onboarding", () => {
-  it("creates the user's own password using their normalized email", async () => {
+  it("requests invitation-only setup without public signup or accepting passwords", async () => {
     render(<FirebaseSignIn />);
     fillSetup();
     await waitFor(() =>
-      expect(api.create).toHaveBeenCalledWith(
-        api.auth,
-        "person@example.com",
-        "TestPassword123",
-      ),
+      expect(api.link).toHaveBeenCalledWith("person@example.com", "setup"),
     );
-    expect(sessionStorage.getItem("pg-verify-after-setup")).toBe(
-      "person@example.com",
-    );
+    expect(api.create).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
     expect(api.signin).not.toHaveBeenCalled();
   });
-  it("requires matching passwords before creating an account", async () => {
+  it("shows the same generic setup response without exposing account existence", async () => {
     render(<FirebaseSignIn />);
-    fillSetup("TestPassword123", "Different123");
-    expect(await screen.findByRole("alert")).toHaveTextContent("do not match");
+    fillSetup();
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "active PG access",
+    );
     expect(api.create).not.toHaveBeenCalled();
   });
-  it("directs an existing account to sign-in or password reset", async () => {
-    api.create.mockRejectedValueOnce({ code: "auth/email-already-in-use" });
+  it("reports an unavailable setup service without falling back to public signup", async () => {
+    api.link.mockRejectedValueOnce(new Error("Setup service unavailable"));
     render(<FirebaseSignIn />);
     fillSetup();
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "already has an account",
+      "Setup service unavailable",
     );
     expect(sessionStorage.getItem("pg-verify-after-setup")).toBeNull();
   });
@@ -94,11 +89,12 @@ describe("email and password onboarding", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Send reset link" }));
     await waitFor(() =>
-      expect(api.reset).toHaveBeenCalledWith(api.auth, "person@example.com"),
+      expect(api.link).toHaveBeenCalledWith("person@example.com", "reset"),
     );
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "password reset link",
+      "does not restore removed PG access",
     );
+    expect(api.reset).not.toHaveBeenCalled();
   });
   it("sends the verification link after first password setup", async () => {
     sessionStorage.setItem("pg-verify-after-setup", "person@example.com");

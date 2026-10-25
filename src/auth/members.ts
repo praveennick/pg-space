@@ -21,6 +21,7 @@ export type Member = {
   label: string;
   ownerUid: string;
   workspaceName: string;
+  revoked?: boolean;
 };
 
 export function normalizeAccessEmail(value: string): string {
@@ -66,7 +67,7 @@ export function watchEmailAccess(
     (snapshot) => {
       const member = snapshot.exists() ? parseMember(snapshot.data()) : null;
       changed(
-        member
+        member && !member.revoked
           ? {
               uid,
               ownerUid: member.ownerUid,

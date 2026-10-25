@@ -115,6 +115,17 @@ beforeEach(() => {
 });
 
 describe("automatic tenant login setup", () => {
+  it("does not recreate revoked tenant access by resending a login email", async () => {
+    documents.set("emailAccess/resident@example.com", {
+      ownerUid: "owner",
+      role: "tenant",
+      tenantId: "resident-one",
+      revoked: true,
+    });
+    expect((await invoke(request({ resend: true }))).status).toBe(403);
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(auth.createUser).not.toHaveBeenCalled();
+  });
   it("does not recreate login access for a checked-out resident", async () => {
     documents.delete("accounts/owner/records/occupancies/items/stay-one");
     expect((await invoke()).status).toBe(409);

@@ -1,13 +1,10 @@
 import { useState, type FormEvent } from "react";
-import {
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
-  signInWithEmailAndPassword,
-} from "firebase/auth";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import { Building2, LockKeyhole } from "lucide-react";
 import { cloudAuth } from "../data/firebase";
 import { normalizeAccessEmail } from "../auth/members";
 import { Button, Field } from "./ui";
+import { requestAccountEmail } from "../services/accountEmail";
 
 type Mode = "signin" | "setup" | "reset";
 
@@ -15,7 +12,6 @@ export function FirebaseSignIn() {
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -23,7 +19,6 @@ export function FirebaseSignIn() {
   const changeMode = (next: Mode) => {
     setMode(next);
     setPassword("");
-    setConfirm("");
     setError("");
     setMessage("");
   };
@@ -35,39 +30,24 @@ export function FirebaseSignIn() {
     setMessage("");
     try {
       const address = normalizeAccessEmail(email);
-      if (mode === "reset") {
-        await sendPasswordResetEmail(cloudAuth, address);
-        setMessage(
-          "If this email has an account, a password reset link has been sent. Check your inbox and spam folder.",
-        );
-      } else if (mode === "setup") {
-        if (password !== confirm)
-          throw new Error("The two passwords do not match.");
-        sessionStorage.setItem("pg-verify-after-setup", address);
-        try {
-          await createUserWithEmailAndPassword(cloudAuth, address, password);
-        } catch (cause) {
-          sessionStorage.removeItem("pg-verify-after-setup");
-          throw cause;
-        }
+      if (mode !== "signin") {
+        setMessage(await requestAccountEmail(address, mode));
       } else {
         await signInWithEmailAndPassword(cloudAuth, address, password);
       }
     } catch (cause) {
       const code = (cause as { code?: string }).code;
       setError(
-        code === "auth/email-already-in-use"
-          ? "This email already has an account. Use the password-setup link from your PG, sign in, or choose Forgot password."
-          : code === "auth/weak-password" ||
-              code === "auth/password-does-not-meet-requirements"
-            ? "Choose a stronger password that meets the account's password requirements."
-            : code === "auth/too-many-requests"
-              ? "Too many attempts. Please wait and try again."
-              : code === "auth/operation-not-allowed"
-                ? "Email and password sign-in needs to be enabled by the app owner."
-                : code?.startsWith("auth/")
-                  ? "Could not continue. Check your details and try again."
-                  : (cause as Error).message,
+        code === "auth/weak-password" ||
+          code === "auth/password-does-not-meet-requirements"
+          ? "Choose a stronger password that meets the account's password requirements."
+          : code === "auth/too-many-requests"
+            ? "Too many attempts. Please wait and try again."
+            : code === "auth/operation-not-allowed"
+              ? "Email and password sign-in needs to be enabled by the app owner."
+              : code?.startsWith("auth/")
+                ? "Could not continue. Check your details and try again."
+                : (cause as Error).message,
       );
     } finally {
       setBusy(false);
@@ -82,16 +62,16 @@ export function FirebaseSignIn() {
         </span>
         <h1>
           {mode === "setup"
-            ? "Set your password"
+            ? "Get your password link"
             : mode === "reset"
               ? "Reset your password"
               : "Sign in to PG Space"}
         </h1>
         <p>
           {mode === "setup"
-            ? "Use the email your PG owner added. Set your password, then verify your email to continue."
+            ? "Enter the email your PG owner added. If your access is active, you can choose your password through the emailed link."
             : mode === "reset"
-              ? "We'll send a link so you can choose a new password."
+              ? "Request a password link. Resetting a password cannot restore removed PG access."
               : "Use your email and password. Your PG opens automatically."}
         </p>
         <Field label="Email address">
@@ -103,35 +83,14 @@ export function FirebaseSignIn() {
             onChange={(event) => setEmail(event.target.value)}
           />
         </Field>
-        {mode !== "reset" && (
-          <Field
-            label={
-              mode === "setup"
-                ? "New password (at least 8 characters)"
-                : "Password"
-            }
-          >
+        {mode === "signin" && (
+          <Field label="Password">
             <input
               type="password"
               required
-              minLength={mode === "setup" ? 8 : undefined}
-              autoComplete={
-                mode === "setup" ? "new-password" : "current-password"
-              }
+              autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-            />
-          </Field>
-        )}
-        {mode === "setup" && (
-          <Field label="Confirm password">
-            <input
-              type="password"
-              required
-              minLength={8}
-              autoComplete="new-password"
-              value={confirm}
-              onChange={(event) => setConfirm(event.target.value)}
             />
           </Field>
         )}
@@ -146,7 +105,7 @@ export function FirebaseSignIn() {
           {busy
             ? "Please wait…"
             : mode === "setup"
-              ? "Set password & continue"
+              ? "Send password link"
               : mode === "reset"
                 ? "Send reset link"
                 : "Sign in"}

@@ -89,6 +89,7 @@ const asRole = (role: string) => {
     email_verified: true,
   });
   data.set(role === "tenant" ? assignment : "emailAccess/team@example.com", {
+    ...(role === "tenant" ? data.get(assignment) : {}),
     ownerUid: "owner",
     role,
     tenantId: role === "tenant" ? "resident" : "",
@@ -196,10 +197,9 @@ it("keeps tenant access blocked and cleanup retryable if Auth deletion fails", a
   ).toBe(500);
   expect(data.get(profile)?.active).toBe(false);
   expect(data.has(assignment)).toBe(true);
+  expect(data.get(assignment)?.revoked).toBe(true);
   asRole("tenant");
-  expect(await (await invoke({ action: "session" })).json()).toEqual({
-    active: false,
-  });
+  expect((await invoke({ action: "session" })).status).toBe(403);
   auth.verifyIdToken.mockResolvedValue({
     uid: "owner",
     email: "owner@example.com",
@@ -207,6 +207,22 @@ it("keeps tenant access blocked and cleanup retryable if Auth deletion fails", a
   expect(
     (await invoke({ action: "remove", email: "resident@example.com" })).status,
   ).toBe(200);
+});
+it("blocks a removed staff member even when their Auth account deletion fails", async () => {
+  data.set(assignment, { ownerUid: "owner", role: "staff", tenantId: "" });
+  auth.deleteUser.mockRejectedValueOnce(new Error("network"));
+  expect(
+    (await invoke({ action: "remove", email: "resident@example.com" })).status,
+  ).toBe(500);
+  expect(data.get(assignment)?.revoked).toBe(true);
+  auth.verifyIdToken.mockResolvedValue({
+    uid: "resident-auth",
+    email: "resident@example.com",
+    email_verified: true,
+  });
+  expect(
+    (await invoke({ action: "checkout", tenantId: "resident" })).status,
+  ).toBe(403);
 });
 it("repairs legacy session metadata only for a current stay", async () => {
   asRole("tenant");

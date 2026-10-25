@@ -24,6 +24,7 @@ service cloud.firestore {
         && exists(memberPath())
         && get(memberPath()).data.ownerUid == accountUid
         && get(memberPath()).data.role == role
+        && get(memberPath()).data.get('revoked', false) != true
         && (role != 'tenant' || get(/databases/$(database)/documents/accounts/$(accountUid)/portal/$(tenantId())).data.get('active', false) == true);
     }
 

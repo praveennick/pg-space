@@ -38,6 +38,7 @@ function check(
     exists = true,
     email = "person@example.test",
     portalActive = true,
+    revoked = false,
   } = {},
 ) {
   tests.push({
@@ -62,7 +63,11 @@ function check(
           args: [{ anyValue: {} }],
           result: {
             value: {
-              data: { ...grant(role || "staff"), active: portalActive },
+              data: {
+                ...grant(role || "staff"),
+                active: portalActive,
+                revoked,
+              },
             },
           },
         },
@@ -351,6 +356,37 @@ check("staff cannot read expenses", "DENY", record("expenses"), {
 check("staff cannot read deposits", "DENY", record("deposits"), {
   role: "staff",
 });
+
+for (const role of ["staff", "admin", "super_admin", "tenant"]) {
+  check(
+    `revoked ${role} cannot regain PG access with a fresh sign-in`,
+    "DENY",
+    record(role === "tenant" ? "invoices" : "rooms"),
+    {
+      role,
+      revoked: true,
+      uid: "recreated-user",
+      before: { tenantId: "resident-one" },
+    },
+  );
+}
+check(
+  "revoked staff's existing token cannot collect rent",
+  "DENY",
+  record("payments"),
+  {
+    role: "staff",
+    revoked: true,
+    method: "create",
+    after: { id: "sample", amount: 850000 },
+  },
+);
+check(
+  "deleted assignment cannot be recovered by verifying the same email",
+  "DENY",
+  record("invoices"),
+  { role: "tenant", exists: false, before: { tenantId: "resident-one" } },
+);
 
 const client = new Client({
   urlPrefix: "https://firebaserules.googleapis.com",

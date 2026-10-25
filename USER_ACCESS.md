@@ -29,7 +29,7 @@ To add another super admin, choose **Super admin** in step 2. They will have ful
 Residents whose accounts were created automatically should open their emailed password-setup link, choose a password, then sign in. The steps below apply to people added manually through Team & access who do not have an account yet.
 
 1. Open the app and choose **First time? Set password**.
-2. Enter the same email the owner added, choose a password and confirm it.
+2. Enter the same email the owner added and select **Send password link**. Only an active, non-revoked invitation can create a login. Choose the password through the emailed Firebase link, then sign in.
 3. Open Firebase's verification email, then return to the app and select **I verified my email — continue**.
 4. The assigned PG and role open automatically. Future visits use normal email/password sign-in.
 
@@ -47,6 +47,18 @@ An existing Firebase Authentication account should use its current password, or 
 The local IndexedDB demo does not create accounts or send account emails. Use Firebase mode to test separate users.
 
 ## How access is enforced
+
+Password recovery never grants PG access. Removal first marks the email assignment `revoked: true`, which is checked by the UI, Firestore rules and server functions for every role. A failed Auth deletion leaves a blocked Team entry for cleanup; it does not leave the person's old permissions active. Only an explicit super admin action can add access again. Receiving a Firebase password reset or verification email alone does not authorize a PG session.
+
+First-time setup and Forgot password now call `/api/account-email`. This function checks active invitations/current stays, recognizes original owner accounts, and uses Firebase's native password email. It returns the same message for unknown and revoked emails, applies per-email, IP and global limits, and never accepts a password or role from the browser. The frontend no longer calls public `createUserWithEmailAndPassword` or sends password emails directly through the browser SDK.
+
+Deploy the updated Netlify app with `FIREBASE_SERVICE_ACCOUNT_JSON`, `FIREBASE_WEB_API_KEY` and `APP_URL`, then publish the updated rules with `npm run deploy:rules`. After deploying the new invitation flow, lock down Firebase's public signup API too:
+
+```bash
+node scripts/check-auth-email-settings.mjs --disable-public-signup
+```
+
+The script changes only `client.permissions.disabledUserSignup`, checks that Firebase saved it, and sends no email. Admin SDK invitation creation remains available. Running the script without flags only reads non-secret settings. This project setting prevents someone bypassing the React UI to create an account directly; the revoked-access rules independently protect PG records. See [Firebase client permissions](https://docs.cloud.google.com/identity-platform/docs/reference/rest/v2/Config#Permissions).
 
 Assignments live in `emailAccess/{lowercase-email}`. They contain the PG owner ID, role, optional resident ID and display labels. A verified Firebase token must match the assigned email; a user cannot grant or change their own role. Only a super admin for that PG may manage its assignments. An email can have one assignment at a time.
 

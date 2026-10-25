@@ -111,7 +111,7 @@ export default function Team() {
       );
       resetForm();
       toast.success(
-        "Access saved. They can now set their password on the app's sign-in page.",
+        "Access saved. They can request a password link on the app's sign-in page.",
       );
       await refresh();
     } catch (cause) {
@@ -235,8 +235,9 @@ export default function Team() {
           <p>1. Add their email here and save access.</p>
           <p>2. Share your app link with them.</p>
           <p>
-            3. They choose <strong>First time? Set password</strong>, set their
-            own password and verify their email.
+            3. They choose <strong>First time? Set password</strong> and request
+            an email link. They set their password through that link, then sign
+            in and verify their email.
           </p>
           <p>
             The app opens their PG automatically after sign-in. Existing users
@@ -302,7 +303,14 @@ export default function Team() {
                           <small className="access-email">{member.email}</small>
                         )}
                       </td>
-                      <td data-label="Role">{roleNames[member.role]}</td>
+                      <td data-label="Role">
+                        {roleNames[member.role]}
+                        {member.revoked && (
+                          <small className="access-email">
+                            Access blocked — removal needs retry
+                          </small>
+                        )}
+                      </td>
                       <td data-label="Linked resident">
                         {s.tenants.find(
                           (tenant) => tenant.id === member.tenantId,

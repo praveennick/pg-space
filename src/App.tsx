@@ -36,12 +36,9 @@ import {
   Plus,
   ChevronLeft,
   ChevronDown,
-  Moon,
-  Sun,
   ArrowUpRight,
   Menu,
   X,
-  Monitor,
   CircleHelp,
   FileText,
   LogOut,
@@ -51,7 +48,7 @@ import {
 import { onIdTokenChanged, signOut, type User } from "firebase/auth";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
 import { useData } from "./hooks/useData";
-import { firebaseStore, store } from "./data";
+import { firebaseStore, store, service } from "./data";
 import { initialize } from "./data/seed";
 import { cloudAuth, cloudDb, firebaseMode } from "./data/firebase";
 import { FirebaseSignIn } from "./components/FirebaseSignIn";
@@ -65,7 +62,8 @@ import {
   type WorkspaceAccess,
 } from "./auth/access";
 import { accessErrorMessage, watchEmailAccess } from "./auth/members";
-import { useTheme } from "./hooks/useTheme";
+import { ThemeToggle } from "./components/ThemeToggle";
+import { NotificationsPopover } from "./components/NotificationsPopover";
 
 import { Button, Modal } from "./components/ui";
 import { Editors, type EditorState } from "./components/Editors";
@@ -128,7 +126,6 @@ function Shell() {
   const mobileSearchInput = useRef<HTMLInputElement>(null);
   const mobileSearchPanel = useRef<HTMLDivElement>(null);
   const mobileSearchToggle = useRef<HTMLButtonElement>(null);
-  const { theme, setTheme } = useTheme();
   useEffect(() => {
     document.documentElement.dataset.reduced = String(
       s?.settings[0]?.reducedMotion || false,
@@ -408,34 +405,13 @@ function Shell() {
                 <kbd>⌕</kbd>
                 {renderSearchResults()}
               </div>
-              <AppMenu
-                label={
-                  <button className="icon-button" aria-label="Choose theme">
-                    {theme === "dark" ? (
-                      <Moon size={19} />
-                    ) : theme === "system" ? (
-                      <Monitor size={19} />
-                    ) : (
-                      <Sun size={19} />
-                    )}
-                  </button>
-                }
-              >
-                {["light", "dark", "system"].map((t) => (
-                  <Dropdown.Item key={t} onSelect={() => setTheme(t)}>
-                    {t[0].toUpperCase() + t.slice(1)} {theme === t ? "✓" : ""}
-                  </Dropdown.Item>
-                ))}
-              </AppMenu>
+              <ThemeToggle />
               {canAccessPage(access.role, "notifications") && (
-                <button
-                  className="icon-button notification-button"
-                  aria-label="Open notifications"
-                  onClick={() => navigate("/app/notifications")}
-                >
-                  <Bell size={19} />
-                  {unread > 0 && <i />}
-                </button>
+                <NotificationsPopover
+                  notifications={s.notifications}
+                  markRead={(id) => service.markRead(id)}
+                  navigate={navigate}
+                />
               )}
               <span className="header-separator" />
               <AppMenu
