@@ -41,8 +41,8 @@ An existing Firebase Authentication account should use its current password, or 
 | --- | --- |
 | Super admin | All PG records, settings, team roles, backup import and clearing data. |
 | Admin | PG operations, finances, reports and settings. Cannot manage team access, import/replace all records or clear data. |
-| Staff | Rooms, existing residents, transfers/checkouts, reservations and repairs. Can see operational room/stay rent amounts. Cannot open finance, reports, settings or team management. Check-in and bill creation remain admin tasks. |
-| Tenant | Read only their own basic profile, stay, rent bills and recorded payments. No staff notes, ID details or other residents' records. |
+| Staff | Rooms, existing residents, transfers/checkouts, reservations and repairs. Can collect rent, record payments, apply advances to rent, view rent dues/payment history and share receipts. Cannot edit/delete recorded payments, manage deposits or expenses, open reports, change settings or manage users. Check-in and bill creation remain admin tasks. |
+| Tenant | View their own profile, stay, rent bills and payments. Submit repair requests and watch their own ticket status. Cannot edit requests or change status. No staff notes, ID details or other residents' records. Access ends at checkout. |
 
 The local IndexedDB demo does not create accounts or send account emails. Use Firebase mode to test separate users.
 
@@ -50,7 +50,17 @@ The local IndexedDB demo does not create accounts or send account emails. Use Fi
 
 Assignments live in `emailAccess/{lowercase-email}`. They contain the PG owner ID, role, optional resident ID and display labels. A verified Firebase token must match the assigned email; a user cannot grant or change their own role. Only a super admin for that PG may manage its assignments. An email can have one assignment at a time.
 
-Staff reads load only operational collections. Tenant queries include their linked resident ID, and the rules enforce that ID. Tenant profiles come from a small `accounts/{owner}/portal/{resident}` projection containing only name, phone, email and occupation. Payment allocations and internal tenant documents are not exposed to tenants.
+Staff reads load only operational collections. Tenant queries include their linked resident ID, and the rules enforce that ID. Tenant profiles come from a small `accounts/{owner}/portal/{resident}` projection containing name, phone, email, occupation and an active-access flag. Payment allocations and internal tenant documents are not exposed to tenants. The portal has its own Light/Dark/System theme selection, saved on the device.
+
+## Checkout, account removal and repair requests
+
+Deploy the updated Netlify app **and** run `npm run deploy:rules` for these changes. The `/api/account-action` function uses the same private `FIREBASE_SERVICE_ACCOUNT_JSON` and `APP_URL` settings as tenant onboarding. No new email or storage provider is required. Firebase mode on localhost needs Netlify Dev for these server actions; the local demo still works without credentials.
+
+Checkout ends the stay and marks portal access inactive in the same Firestore transaction. Rules then block profile, bill, payment and ticket reads even with an existing sign-in token. The server checks that no active stay remains, revokes refresh tokens, deletes the tenant's Firebase Authentication account and removes their Team entry. Saved PG and payment records remain. If account deletion fails, checkout stays saved and portal access stays blocked; a super admin can retry with **Team & access → Remove**. A later check-in can create a fresh login. Original PG owner accounts cannot be removed this way.
+
+**Team & access → Remove** now deletes the Firebase sign-in account, rather than only removing the PG assignment. Its confirmation explains this. It keeps business records. No existing accounts are deleted merely by deploying this update.
+
+The portal's server session check enables the active flag for existing tenants only when they still have a current stay; it never reactivates an explicitly blocked portal. Repair submission derives the resident, room and bed from saved data, sets status **Open**, and allows up to five requests per resident per hour. Staff and managers update status through Repairs. Tenants can only see their own requests and updates; browser writes to tickets remain denied. Old staff-created tickets without a resident link stay staff-only.
 
 Access changes are watched while the app is open, and pending data reads are discarded when the session changes. Firebase rules enforce restrictions independently of the browser UI.
 

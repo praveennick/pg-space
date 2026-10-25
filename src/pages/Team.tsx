@@ -35,15 +35,15 @@ const roleHelp: Record<Role, { allowed: string; limits: string }> = {
   },
   staff: {
     allowed:
-      "Manage rooms and beds, edit existing resident details, move residents between beds, check residents out, manage bookings and update repairs. Can see room rent and booking amounts.",
+      "Manage rooms and beds, edit existing residents, move beds, check residents out, manage bookings and repairs. Collect rent, record payments, use advance money for rent, view rent dues and payment history, and share receipts.",
     limits:
-      "Cannot add or check in residents, collect rent, manage deposits or expenses, view payment history or financial reports, change settings or manage users.",
+      "Cannot add or check in residents, create or change rent bills, edit or delete recorded payments, manage deposits or expenses, open reports, change settings or manage users.",
   },
   tenant: {
     allowed:
-      "View only their own basic profile, stay details, rent bills and recorded payments.",
+      "View their own profile, stay details, rent bills and payments. Raise repair requests and view their own request status.",
     limits:
-      "Cannot edit records, see other residents, access staff pages or pay online through the app. Ask the PG office for the current balance.",
+      "Cannot edit requests, change their status, see other residents, access staff pages or pay online. Access ends at checkout.",
   },
 };
 
@@ -185,11 +185,17 @@ export default function Team() {
                   onChange={(event) => setTenantId(event.target.value)}
                 >
                   <option value="">Choose a resident</option>
-                  {s.tenants.map((tenant) => (
-                    <option key={tenant.id} value={tenant.id}>
-                      {tenant.name}
-                    </option>
-                  ))}
+                  {s.tenants
+                    .filter((tenant) =>
+                      s.occupancies.some(
+                        (stay) => stay.tenantId === tenant.id && !stay.end,
+                      ),
+                    )
+                    .map((tenant) => (
+                      <option key={tenant.id} value={tenant.id}>
+                        {tenant.name}
+                      </option>
+                    ))}
                 </select>
               </Field>
             )}
@@ -338,8 +344,8 @@ export default function Team() {
       </section>
       {removing && (
         <Modal
-          title="Remove access?"
-          description="This person will lose access to this PG. Their sign-in account will remain."
+          title="Remove user?"
+          description="This deletes their Firebase sign-in account and removes their PG access. Saved PG records and payment history are kept."
           onClose={() => {
             if (!busy) setRemoving(null);
           }}
@@ -352,7 +358,7 @@ export default function Team() {
               onClick={async () => {
                 setBusy(true);
                 try {
-                  await removeMember(removing.email);
+                  await removeMember(ownerUid, removing.email);
                   setRemoving(null);
                   await refresh();
                   toast.success("Access removed");

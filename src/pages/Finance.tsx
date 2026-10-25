@@ -19,13 +19,22 @@ import {
 } from "../domain/calculations";
 import { rupees, monthNow } from "../domain/models";
 import { Button, Badge, Empty, Modal, Field } from "../components/ui";
-import { downloadReceiptBlob, exportCsv, receipt, receiptPdf } from "../services/export";
+import {
+  downloadReceiptBlob,
+  exportCsv,
+  receipt,
+  receiptPdf,
+} from "../services/export";
 import { service } from "../data";
 import { depositActionLabel, rentStatusLabel } from "../components/labels";
 import { displayDate, displayMonth } from "../domain/dates";
 import { MonthInput } from "../components/MonthInput";
 import { WhatsAppReminder } from "../components/WhatsAppReminder";
-import { normalizeWhatsAppNumber, validateWhatsAppNumber } from "../services/reminders";
+import { useAccess } from "../auth/access";
+import {
+  normalizeWhatsAppNumber,
+  validateWhatsAppNumber,
+} from "../services/reminders";
 
 type ReceiptShare = {
   file: File;
@@ -35,6 +44,7 @@ type ReceiptShare = {
 };
 
 export default function Finance() {
+  const staff = useAccess().role === "staff";
   const { s, open } = useApp(),
     location = useLocation(),
     [params] = useSearchParams(),
@@ -120,7 +130,9 @@ export default function Finance() {
       setReceiptDownloaded(false);
       setShareError("");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not prepare the PDF.");
+      toast.error(
+        error instanceof Error ? error.message : "Could not prepare the PDF.",
+      );
     } finally {
       setPreparingShare(null);
     }
@@ -141,7 +153,9 @@ export default function Finance() {
       setReceiptShare(null);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      setShareError("Your phone could not share this PDF. Download it and attach it in WhatsApp.");
+      setShareError(
+        "Your phone could not share this PDF. Download it and attach it in WhatsApp.",
+      );
     } finally {
       setShareBusy(false);
     }
@@ -187,7 +201,7 @@ export default function Finance() {
               ["Rent charged", billed],
               ["Rent collected", collected],
               ["Rent still due", billed - collected],
-              ["Deposits held", depositHeld(s)],
+              ...(!staff ? [["Deposits held", depositHeld(s)]] : []),
             ]
         ).map(([label, value]) => (
           <div className="panel" key={label}>
@@ -202,7 +216,12 @@ export default function Finance() {
       <section className="panel">
         {!isExpense && (
           <div className="tabs" aria-label="Payment views">
-            {["Rent dues", "Transactions", "Advances", "Deposits"].map((t) => (
+            {[
+              "Rent dues",
+              "Transactions",
+              "Advances",
+              ...(!staff ? ["Deposits"] : []),
+            ].map((t) => (
               <button
                 key={t}
                 className={tab === t ? "active" : ""}
@@ -267,9 +286,11 @@ export default function Finance() {
                   </option>
                 ))}
               </select>
-              <Button variant="outline" onClick={() => setBilling(true)}>
-                <CalendarDays size={15} /> Create rent bills
-              </Button>
+              {!staff && (
+                <Button variant="outline" onClick={() => setBilling(true)}>
+                  <CalendarDays size={15} /> Create rent bills
+                </Button>
+              )}
             </>
           )}
         </div>
@@ -537,7 +558,10 @@ export default function Finance() {
                               disabled={preparingShare === p.id}
                               onClick={() => void prepareReceiptShare(p.id)}
                             >
-                              <Send size={14} /> {preparingShare === p.id ? "Preparing PDF…" : "Share receipt PDF"}
+                              <Send size={14} />{" "}
+                              {preparingShare === p.id
+                                ? "Preparing PDF…"
+                                : "Share receipt PDF"}
                             </Button>
                           </div>
                           {left > 0 && (
@@ -618,7 +642,7 @@ export default function Finance() {
       <p className="local-note">
         Deposits and advance money are kept separate from rent paid.
       </p>
-      {billing && (
+      {billing && !staff && (
         <Modal
           title={`Create rent bills for ${displayMonth(month)}?`}
           onClose={() => setBilling(false)}
@@ -667,12 +691,15 @@ export default function Finance() {
           onClose={() => setReceiptShare(null)}
         >
           <div className="dialog-body receipt-share-dialog">
-            <p><strong>{receiptShare.file.name}</strong></p>
+            <p>
+              <strong>{receiptShare.file.name}</strong>
+            </p>
             {typeof navigator.share === "function" &&
             typeof navigator.canShare === "function" &&
             navigator.canShare({ files: [receiptShare.file] }) ? (
               <Button disabled={shareBusy} onClick={() => void shareReceipt()}>
-                <Send size={16} /> {shareBusy ? "Opening share menu…" : "Share PDF attachment"}
+                <Send size={16} />{" "}
+                {shareBusy ? "Opening share menu…" : "Share PDF attachment"}
               </Button>
             ) : (
               <p>
@@ -681,23 +708,32 @@ export default function Finance() {
                   : "Direct PDF sharing needs HTTPS or localhost. Download the PDF and attach it in WhatsApp from this HTTP address."}
               </p>
             )}
-            {shareError && <p role="alert" className="error">{shareError}</p>}
-            <Button variant="outline" onClick={() => {
-              downloadReceiptBlob(receiptShare.file, receiptShare.paymentId);
-              setReceiptDownloaded(true);
-            }}>
+            {shareError && (
+              <p role="alert" className="error">
+                {shareError}
+              </p>
+            )}
+            <Button
+              variant="outline"
+              onClick={() => {
+                downloadReceiptBlob(receiptShare.file, receiptShare.paymentId);
+                setReceiptDownloaded(true);
+              }}
+            >
               <Download size={16} /> Download PDF
             </Button>
-            {receiptDownloaded && validateWhatsAppNumber(receiptShare.phone) && (
-              <a
-                className="btn btn-outline"
-                href={`https://wa.me/${normalizeWhatsAppNumber(receiptShare.phone)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Open {receiptShare.tenantName}'s WhatsApp chat to attach the PDF
-              </a>
-            )}
+            {receiptDownloaded &&
+              validateWhatsAppNumber(receiptShare.phone) && (
+                <a
+                  className="btn btn-outline"
+                  href={`https://wa.me/${normalizeWhatsAppNumber(receiptShare.phone)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Open {receiptShare.tenantName}'s WhatsApp chat to attach the
+                  PDF
+                </a>
+              )}
           </div>
         </Modal>
       )}

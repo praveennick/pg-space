@@ -18,7 +18,13 @@ export function useAccess(): WorkspaceAccess {
   return access;
 }
 
-const staffPages = new Set(["rooms", "tenants", "reservations", "maintenance"]);
+const staffPages = new Set([
+  "rooms",
+  "tenants",
+  "reservations",
+  "maintenance",
+  "payments",
+]);
 
 export function canAccessPage(role: Role, page: string): boolean {
   if (role === "super_admin") return true;
@@ -46,5 +52,7 @@ export function canOpenEditor(role: Role, editor: EditorState): boolean {
     "ticket",
     "transfer",
     "checkout",
+    "payment",
+    "allocate",
   ].includes(editor.kind);
 }

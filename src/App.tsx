@@ -65,6 +65,7 @@ import {
   type WorkspaceAccess,
 } from "./auth/access";
 import { accessErrorMessage, watchEmailAccess } from "./auth/members";
+import { useTheme } from "./hooks/useTheme";
 
 import { Button, Modal } from "./components/ui";
 import { Editors, type EditorState } from "./components/Editors";
@@ -127,20 +128,7 @@ function Shell() {
   const mobileSearchInput = useRef<HTMLInputElement>(null);
   const mobileSearchPanel = useRef<HTMLDivElement>(null);
   const mobileSearchToggle = useRef<HTMLButtonElement>(null);
-  const [theme, setTheme] = useState(
-    () => localStorage.getItem("pg-theme") || "light",
-  );
-  useEffect(() => {
-    const media = matchMedia("(prefers-color-scheme: dark)");
-    const apply = () => {
-      document.documentElement.dataset.theme =
-        theme === "system" ? (media.matches ? "dark" : "light") : theme;
-    };
-    apply();
-    localStorage.setItem("pg-theme", theme);
-    media.addEventListener("change", apply);
-    return () => media.removeEventListener("change", apply);
-  }, [theme]);
+  const { theme, setTheme } = useTheme();
   useEffect(() => {
     document.documentElement.dataset.reduced = String(
       s?.settings[0]?.reducedMotion || false,

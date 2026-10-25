@@ -23,7 +23,8 @@ service cloud.firestore {
       return verifiedEmail()
         && exists(memberPath())
         && get(memberPath()).data.ownerUid == accountUid
-        && get(memberPath()).data.role == role;
+        && get(memberPath()).data.role == role
+        && (role != 'tenant' || get(/databases/$(database)/documents/accounts/$(accountUid)/portal/$(tenantId())).data.get('active', false) == true);
     }
 
     function tenantId() {
@@ -53,7 +54,7 @@ service cloud.firestore {
     function staffReadEntity(entity) {
       return entity in [
         'rooms', 'beds', 'tenants', 'occupancies',
-        'reservations', 'tickets', 'settings'
+        'reservations', 'tickets', 'settings', 'invoices', 'payments', 'allocations'
       ];
     }
 
@@ -66,7 +67,7 @@ service cloud.firestore {
 
     function tenantRecord(accountUid, entity) {
       return hasRole(accountUid, 'tenant')
-        && entity in ['invoices', 'payments', 'occupancies']
+        && entity in ['invoices', 'payments', 'occupancies', 'tickets']
         && resource.data.tenantId == tenantId();
     }
 
@@ -123,7 +124,7 @@ service cloud.firestore {
         || (hasRole(accountUid, 'tenant') && residentId == tenantId());
       allow list: if manager(accountUid);
       allow create, update: if worker(accountUid)
-        && request.resource.data.keys().hasOnly(['name', 'phone', 'email', 'occupation'])
+        && request.resource.data.keys().hasOnly(['name', 'phone', 'email', 'occupation', 'active'])
         && request.resource.data.keys().hasAll(['name', 'phone', 'email', 'occupation'])
         && request.resource.data.name is string
         && request.resource.data.phone is string
@@ -140,18 +141,22 @@ service cloud.firestore {
       allow list: if knownEntity(entity)
         && (manager(accountUid)
           || (hasRole(accountUid, 'staff') && staffReadEntity(entity))
-          || (entity in ['invoices', 'payments', 'occupancies']
+          || (entity in ['invoices', 'payments', 'occupancies', 'tickets']
             && tenantRecord(accountUid, entity)));
       allow create: if knownEntity(entity)
         && request.resource.data.id == recordId
         && (manager(accountUid)
           || (hasRole(accountUid, 'staff')
-            && (staffEditEntity(entity) || entity in ['audit', 'notifications'])));
+            && (staffEditEntity(entity) || entity in ['audit', 'notifications', 'payments', 'allocations'])));
       allow update: if knownEntity(entity)
         && request.resource.data.id == recordId
         && (manager(accountUid)
           || (hasRole(accountUid, 'staff') && staffEditEntity(entity)));
       allow delete: if knownEntity(entity) && superAdmin(accountUid);
+    }
+
+    match /accounts/{accountUid}/tenantTicketRate/{residentId} {
+      allow read, delete: if superAdmin(accountUid);
     }
 
     match /{document=**} {

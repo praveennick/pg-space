@@ -96,6 +96,9 @@ export class FirestoreStore implements DataStore {
               "reservations",
               "tickets",
               "settings",
+              "invoices",
+              "payments",
+              "allocations",
             ].includes(name),
           )
         : names;
@@ -131,6 +134,39 @@ export class FirestoreStore implements DataStore {
       const original = structuredClone(state);
       const result = work(state);
       const writes: Array<{ path: DocumentReference; value?: object }> = [];
+      for (const stay of state.occupancies.filter((item) => !item.end)) {
+        if (
+          JSON.stringify(stay) !==
+          JSON.stringify(
+            original.occupancies.find((item) => item.id === stay.id),
+          )
+        ) {
+          const tenant = state.tenants.find(
+            (item) => item.id === stay.tenantId,
+          );
+          if (tenant)
+            writes.push({
+              path: doc(db(), "accounts", owner, "portal", tenant.id),
+              value: { ...publicProfile(tenant), active: true },
+            });
+        }
+      }
+      for (const stay of original.occupancies.filter((item) => !item.end)) {
+        if (
+          !state.occupancies.some(
+            (item) => item.tenantId === stay.tenantId && !item.end,
+          )
+        )
+          writes.push({
+            path: doc(db(), "accounts", owner, "portal", stay.tenantId),
+            value: {
+              ...publicProfile(
+                original.tenants.find((item) => item.id === stay.tenantId)!,
+              ),
+              active: false,
+            },
+          });
+      }
       for (const name of names) {
         const old = new Map(
           original[name].map((item) => [item.id, JSON.stringify(item)]),
@@ -145,7 +181,12 @@ export class FirestoreStore implements DataStore {
             if (name === "tenants")
               writes.push({
                 path: doc(db(), "accounts", owner, "portal", id),
-                value: publicProfile(item as Tenant),
+                value: {
+                  ...publicProfile(item as Tenant),
+                  active: state.occupancies.some(
+                    (stay) => stay.tenantId === id && !stay.end,
+                  ),
+                },
               });
           }
         for (const id of old.keys())
@@ -208,12 +249,14 @@ export class FirestoreStore implements DataStore {
       const snapshots = await Promise.all(
         names.map((name) => getDocs(this.records(name))),
       );
-      const [portal, members, onboarding, inviteRate] = await Promise.all([
-        getDocs(collection(db(), "accounts", owner, "portal")),
-        getDocs(collection(db(), "accounts", owner, "members")),
-        getDocs(collection(db(), "accounts", owner, "tenantOnboarding")),
-        getDoc(doc(db(), "accounts", owner, "control", "tenantInviteRate")),
-      ]);
+      const [portal, members, onboarding, inviteRate, ticketRates] =
+        await Promise.all([
+          getDocs(collection(db(), "accounts", owner, "portal")),
+          getDocs(collection(db(), "accounts", owner, "members")),
+          getDocs(collection(db(), "accounts", owner, "tenantOnboarding")),
+          getDoc(doc(db(), "accounts", owner, "control", "tenantInviteRate")),
+          getDocs(collection(db(), "accounts", owner, "tenantTicketRate")),
+        ]);
       if (owner !== this.ownerUid || sessionRevision !== this.sessionRevision)
         throw new Error("The signed-in account changed. Please reload.");
 
@@ -229,6 +272,7 @@ export class FirestoreStore implements DataStore {
       records.push(...portal.docs.map((item) => item.ref));
       records.push(...members.docs.map((item) => item.ref));
       records.push(...onboarding.docs.map((item) => item.ref));
+      records.push(...ticketRates.docs.map((item) => item.ref));
       if (inviteRate.exists()) records.push(inviteRate.ref);
       const version = this.version();
       const apply = async (items: DocumentReference[], finish = false) => {

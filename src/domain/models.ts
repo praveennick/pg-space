@@ -152,6 +152,8 @@ export const schemas = {
   }),
   tickets: z.object({
     ...base,
+    tenantId: z.string().optional(),
+    occupancyId: z.string().optional(),
     roomId: id,
     bedId: z.string(),
     category: z.string(),

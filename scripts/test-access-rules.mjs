@@ -37,6 +37,7 @@ function check(
     after,
     exists = true,
     email = "person@example.test",
+    portalActive = true,
   } = {},
 ) {
   tests.push({
@@ -59,7 +60,11 @@ function check(
         {
           function: "get",
           args: [{ anyValue: {} }],
-          result: { value: { data: grant(role || "staff") } },
+          result: {
+            value: {
+              data: { ...grant(role || "staff"), active: portalActive },
+            },
+          },
         },
       ],
     },
@@ -131,7 +136,7 @@ check(
   { role: "staff", before: grant("admin", { email: "other@example.test" }) },
 );
 check("staff can see rooms", "ALLOW", record("rooms"), { role: "staff" });
-check("staff cannot see payments", "DENY", record("payments"), {
+check("staff can see payments", "ALLOW", record("payments"), {
   role: "staff",
 });
 check("unverified staff cannot see rooms", "DENY", record("rooms"), {
@@ -233,6 +238,119 @@ check(
   "accounts/owner/control/tenantInviteRate",
   { role: "super_admin", method: "delete" },
 );
+
+check("tenant can read their own repair status", "ALLOW", record("tickets"), {
+  role: "tenant",
+  before: { tenantId: "resident-one" },
+});
+check(
+  "tenant cannot see another resident's ticket",
+  "DENY",
+  record("tickets"),
+  { role: "tenant", before: { tenantId: "resident-two" } },
+);
+check("tenant cannot update ticket status", "DENY", record("tickets"), {
+  role: "tenant",
+  method: "update",
+  before: { id: "sample", tenantId: "resident-one", status: "Open" },
+  after: { id: "sample", tenantId: "resident-one", status: "Closed" },
+});
+check(
+  "tenant cannot bypass server ticket validation",
+  "DENY",
+  record("tickets"),
+  {
+    role: "tenant",
+    method: "create",
+    after: { id: "sample", tenantId: "resident-one", status: "Open" },
+  },
+);
+check("checked-out resident cannot read bills", "DENY", record("invoices"), {
+  role: "tenant",
+  portalActive: false,
+  before: { tenantId: "resident-one" },
+});
+check(
+  "checked-out resident cannot read their profile",
+  "DENY",
+  "accounts/owner/portal/resident-one",
+  { role: "tenant", portalActive: false },
+);
+check(
+  "tenant cannot reactivate their portal",
+  "DENY",
+  "accounts/owner/portal/resident-one",
+  {
+    role: "tenant",
+    portalActive: false,
+    method: "update",
+    after: {
+      name: "Resident",
+      phone: "12345",
+      email: "person@example.test",
+      occupation: "",
+      active: true,
+    },
+  },
+);
+
+check("staff can read rent bills", "ALLOW", record("invoices"), {
+  role: "staff",
+});
+check("staff can read rent allocations", "ALLOW", record("allocations"), {
+  role: "staff",
+});
+check("staff can record collected rent", "ALLOW", record("payments"), {
+  role: "staff",
+  method: "create",
+  after: {
+    id: "sample",
+    tenantId: "resident-one",
+    amount: 850000,
+    date: "2026-10-25",
+    method: "Cash",
+    reference: "",
+    notes: "",
+    key: "request-one",
+    createdAt: "2026-10-25T10:00:00.000Z",
+  },
+});
+check("staff can allocate payment to rent", "ALLOW", record("allocations"), {
+  role: "staff",
+  method: "create",
+  after: {
+    id: "sample",
+    paymentId: "payment-one",
+    invoiceId: "invoice-one",
+    amount: 850000,
+    createdAt: "2026-10-25T10:00:00.000Z",
+  },
+});
+for (const entity of ["payments", "allocations", "invoices"]) {
+  check(`staff cannot edit ${entity}`, "DENY", record(entity), {
+    role: "staff",
+    method: "update",
+    before: { id: "sample", amount: 850000 },
+    after: { id: "sample", amount: 1 },
+  });
+  check(`staff cannot delete ${entity}`, "DENY", record(entity), {
+    role: "staff",
+    method: "delete",
+  });
+}
+for (const entity of ["invoices", "deposits", "expenses"]) {
+  check(`staff cannot create ${entity}`, "DENY", record(entity), {
+    role: "staff",
+    method: "create",
+    after: { id: "sample", amount: 850000 },
+  });
+}
+check("staff cannot read expenses", "DENY", record("expenses"), {
+  role: "staff",
+});
+check("staff cannot read deposits", "DENY", record("deposits"), {
+  role: "staff",
+});
 
 const client = new Client({
   urlPrefix: "https://firebaserules.googleapis.com",

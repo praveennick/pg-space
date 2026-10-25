@@ -1,6 +1,5 @@
 import {
   collection,
-  deleteDoc,
   doc,
   getDocs,
   onSnapshot,
@@ -13,6 +12,7 @@ import { z } from "zod/v4";
 import { cloudAuth, cloudDb } from "../data/firebase";
 import type { Tenant } from "../domain/models";
 import type { Role, WorkspaceAccess } from "./access";
+import { accountAction } from "../services/accountActions";
 
 export type Member = {
   email: string;
@@ -124,12 +124,16 @@ export async function saveMember(
   await batch.commit();
 }
 
-export async function removeMember(email: string) {
+export async function removeMember(ownerUid: string, email: string) {
   if (
     normalizeAccessEmail(email) === cloudAuth?.currentUser?.email?.toLowerCase()
   )
     throw new Error("Ask another super admin to change your access.");
-  await deleteDoc(memberRef(email));
+  await accountAction({
+    action: "remove",
+    ownerUid,
+    email: normalizeAccessEmail(email),
+  });
 }
 
 export function accessErrorMessage(error: unknown): string {

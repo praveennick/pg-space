@@ -131,12 +131,10 @@ export default function Tenants() {
                           {occupancy ? rupees(occupancy.rent) : "—"}
                         </strong>
                       </span>
-                      {!staff && (
-                        <span>
-                          <small>Rent due</small>
-                          <strong>{rupees(pending)}</strong>
-                        </span>
-                      )}
+                      <span>
+                        <small>Rent due</small>
+                        <strong>{rupees(pending)}</strong>
+                      </span>
                     </span>
                   </button>
                 );
@@ -152,7 +150,7 @@ export default function Tenants() {
                       "Room / Bed",
                       "Check-in",
                       "Monthly rent",
-                      ...(!staff ? ["Rent due"] : []),
+                      "Rent due",
                       "Status",
                       "",
                     ].map((h, i) => (
@@ -191,14 +189,12 @@ export default function Tenants() {
                         <td data-label="Monthly rent">
                           {o ? rupees(o.rent) : "—"}
                         </td>
-                        {!staff && (
-                          <td
-                            data-label="Rent due"
-                            className={pending ? "warning-text" : ""}
-                          >
-                            {rupees(pending)}
-                          </td>
-                        )}
+                        <td
+                          data-label="Rent due"
+                          className={pending ? "warning-text" : ""}
+                        >
+                          {rupees(pending)}
+                        </td>
                         <td data-label="Status">
                           <Badge status={o ? "Occupied" : "neutral"}>
                             {o ? "Active" : "Checked out"}
@@ -270,7 +266,7 @@ export default function Tenants() {
             <div className="tabs" aria-label="Resident profile sections">
               {[
                 "Overview",
-                ...(!staff ? ["Payments"] : []),
+                "Payments",
                 "Stay History",
                 "ID check",
                 "Complaints",
@@ -288,28 +284,28 @@ export default function Tenants() {
             </div>
             {tab === "Overview" && (
               <>
-                {!staff && (
-                  <div className="detail-metrics">
-                    <div>
-                      <small>Monthly rent</small>
-                      <strong>{rupees(stay?.rent || 0)}</strong>
-                    </div>
+                <div className="detail-metrics">
+                  <div>
+                    <small>Monthly rent</small>
+                    <strong>{rupees(stay?.rent || 0)}</strong>
+                  </div>
+                  {!staff && (
                     <div>
                       <small>Deposit money held</small>
                       <strong>{rupees(depositHeld(s, tenant.id))}</strong>
                     </div>
-                    <div>
-                      <small>Rent still due</small>
-                      <strong>
-                        {rupees(
-                          s.invoices
-                            .filter((i) => i.tenantId === tenant.id)
-                            .reduce((v, i) => v + balance(s, i), 0),
-                        )}
-                      </strong>
-                    </div>
+                  )}
+                  <div>
+                    <small>Rent still due</small>
+                    <strong>
+                      {rupees(
+                        s.invoices
+                          .filter((i) => i.tenantId === tenant.id)
+                          .reduce((v, i) => v + balance(s, i), 0),
+                      )}
+                    </strong>
                   </div>
-                )}
+                </div>
                 <div className="info-grid">
                   <div>
                     <small>Email</small>

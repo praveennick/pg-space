@@ -36,6 +36,7 @@ import { TenantAvatar, TenantPhotoPicker } from "./TenantPhoto";
 import { fileStorage } from "../services/fileStorage";
 import { cloudAuth, firebaseMode } from "../data/firebase";
 import { inviteTenantLogin } from "../services/tenantLogin";
+import { accountAction } from "../services/accountActions";
 import { DateInput } from "./DateInput";
 import { displayDate, displayMonth } from "../domain/dates";
 import { getVerificationErrors } from "../domain/verification";
@@ -998,18 +999,16 @@ function BedDetails({ id, onClose }: { id: string; onClose: () => void }) {
             <p>
               {tenant.phone} · Since {displayDate(stay?.start)}
             </p>
-            {!staff && (
-              <p>
-                Outstanding:{" "}
-                <strong>
-                  {rupees(
-                    s.invoices
-                      .filter((i) => i.tenantId === tenant.id)
-                      .reduce((v, i) => v + balance(s, i), 0),
-                  )}
-                </strong>
-              </p>
-            )}
+            <p>
+              Outstanding:{" "}
+              <strong>
+                {rupees(
+                  s.invoices
+                    .filter((i) => i.tenantId === tenant.id)
+                    .reduce((v, i) => v + balance(s, i), 0),
+                )}
+              </strong>
+            </p>
             <div className="button-row">
               <Button
                 onClick={() => {
@@ -1025,21 +1024,19 @@ function BedDetails({ id, onClose }: { id: string; onClose: () => void }) {
               >
                 Transfer
               </Button>
-              {!staff && (
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    open({
-                      kind: "payment",
-                      id: s.invoices.find(
-                        (i) => i.tenantId === tenant.id && balance(s, i) > 0,
-                      )?.id,
-                    })
-                  }
-                >
-                  Collect rent
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                onClick={() =>
+                  open({
+                    kind: "payment",
+                    id: s.invoices.find(
+                      (i) => i.tenantId === tenant.id && balance(s, i) > 0,
+                    )?.id,
+                  })
+                }
+              >
+                Collect rent
+              </Button>
               <Button
                 variant="danger"
                 onClick={() => open({ kind: "checkout", id: tenant.id })}
@@ -1142,6 +1139,7 @@ function TransactionEditor({
   editor: EditorState;
   onClose: () => void;
 }) {
+  const { ownerUid: accessOwnerUid } = useAccess();
   const { s } = useApp(),
     { kind, id } = editor,
     [busy, setBusy] = useState(false),
@@ -1339,13 +1337,27 @@ function TransactionEditor({
         });
       if (kind === "transfer")
         await service.transfer(id!, bedId, str("date"), f.has("cleaning"));
-      if (kind === "checkout")
+      if (kind === "checkout") {
         await service.checkout(
           id!,
           str("date"),
           f.has("cleaning"),
           str("notes"),
         );
+        if (firebaseMode) {
+          try {
+            await accountAction({
+              action: "checkout",
+              ownerUid: accessOwnerUid,
+              tenantId: id,
+            });
+          } catch (cause) {
+            toast.warning(
+              `Checked out and portal access blocked. Ask a super admin to retry user removal in Team & access: ${(cause as Error).message}`,
+            );
+          }
+        }
+      }
       if (kind === "deposit") {
         const occupancy = s.occupancies.filter((o) => o.tenantId === id).at(-1);
         if (!occupancy) throw new Error("No stay found");
@@ -1612,6 +1624,8 @@ function TransactionEditor({
             <p className="notice">
               This frees the bed. If you keep or return any deposit money,
               record it under Deposit history. Unpaid rent will still be due.
+              {firebaseMode &&
+                " Their app access ends immediately, and their Firebase sign-in account will be removed. PG records and payment history are kept."}
             </p>
           </>
         )}

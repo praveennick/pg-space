@@ -27,10 +27,14 @@ describe("access assignments", () => {
     expect(canAccessPage("super_admin", "team")).toBe(true);
     expect(canAccessPage("admin", "team")).toBe(false);
     expect(canAccessPage("staff", "rooms")).toBe(true);
-    expect(canAccessPage("staff", "payments")).toBe(false);
+    expect(canAccessPage("staff", "payments")).toBe(true);
+    for (const page of ["expenses", "reports", "settings", "team"])
+      expect(canAccessPage("staff", page)).toBe(false);
     expect(canAccessPage("tenant", "tenants")).toBe(false);
     expect(canAccessPage("tenant", "my-account")).toBe(true);
-    expect(canOpenEditor("staff", { kind: "payment" })).toBe(false);
+    expect(canOpenEditor("staff", { kind: "payment" })).toBe(true);
+    expect(canOpenEditor("staff", { kind: "allocate" })).toBe(true);
+    expect(canOpenEditor("staff", { kind: "deposit" })).toBe(false);
     expect(canOpenEditor("tenant", { kind: "tenant", id: "own-profile" })).toBe(
       false,
     );

@@ -136,6 +136,17 @@ export async function handleTenantOnboarding(
     if (!tenantDocument.exists || !settingsDocument.exists)
       throw new Failure(404, "Resident or PG details were not found.");
     const tenant = tenantDocument.data()!;
+    const activeStays = await db
+      .collection(`accounts/${ownerUid}/records/occupancies/items`)
+      .where("tenantId", "==", tenantId)
+      .where("end", "==", null)
+      .get();
+    const activeStay = activeStays.docs[0];
+    if (!activeStay)
+      throw new Failure(
+        409,
+        "This resident has checked out. Check them in before creating login access.",
+      );
     const email = normalizedEmail(tenant.email);
     if (email === actorEmail)
       throw new Failure(
@@ -188,6 +199,12 @@ export async function handleTenantOnboarding(
             ? transaction.get(actorRef)
             : Promise.resolve(null),
         ]);
+      const freshStay = await transaction.get(activeStay.ref);
+      if (!freshStay.exists || freshStay.data()?.end !== null)
+        throw new Failure(
+          409,
+          "This resident has checked out. Login access cannot be created.",
+        );
       if (!permitted(freshActor?.data()))
         throw new Failure(
           403,
@@ -259,6 +276,7 @@ export async function handleTenantOnboarding(
         label: String(tenant.name || "").slice(0, 100),
       });
       transaction.set(db.doc(`accounts/${ownerUid}/portal/${tenantId}`), {
+        active: true,
         name: String(tenant.name || ""),
         email,
         phone: String(tenant.phone || ""),

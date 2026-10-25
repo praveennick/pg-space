@@ -50,7 +50,7 @@ it("adds a super admin using just email and role without technical account field
   fireEvent.change(screen.getByLabelText("Access level"), {
     target: { value: "tenant" },
   });
-  expect(screen.getByText(/View only their own basic profile/)).toBeVisible();
+  expect(screen.getByText(/Raise repair requests and view their own request status/)).toBeVisible();
   fireEvent.change(screen.getByLabelText("Email address"), {
     target: { value: "newowner@example.com" },
   });

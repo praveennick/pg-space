@@ -46,6 +46,7 @@ const collection = (
           filters.every(([field, value]) => data[field] === value),
       )
       .map(([key, value]) => ({
+        ref: reference(key),
         id: key.split("/").at(-1),
         data: () => value,
       })),
@@ -100,6 +101,10 @@ beforeEach(() => {
       },
     ],
     ["accounts/owner/records/settings/items/property", { name: "Lucky PG" }],
+    [
+      "accounts/owner/records/occupancies/items/stay-one",
+      { id: "stay-one", tenantId: "resident-one", end: null },
+    ],
   ]);
   auth.verifyIdToken.mockResolvedValue(actor);
   auth.getUserByEmail.mockRejectedValue({ code: "auth/user-not-found" });
@@ -110,6 +115,12 @@ beforeEach(() => {
 });
 
 describe("automatic tenant login setup", () => {
+  it("does not recreate login access for a checked-out resident", async () => {
+    documents.delete("accounts/owner/records/occupancies/items/stay-one");
+    expect((await invoke()).status).toBe(409);
+    expect(auth.createUser).not.toHaveBeenCalled();
+    expect(fetcher).not.toHaveBeenCalled();
+  });
   it("creates exactly the saved email, assigns only tenant access, and requests a Firebase password link", async () => {
     const response = await invoke();
     expect(response.status).toBe(200);
