@@ -361,7 +361,9 @@ export default function Team() {
                   await removeMember(ownerUid, removing.email);
                   setRemoving(null);
                   await refresh();
-                  toast.success("Access removed");
+                  toast.success(
+                    "User removed from PG access and Firebase sign-in.",
+                  );
                 } catch (cause) {
                   toast.error(accessErrorMessage(cause));
                 } finally {

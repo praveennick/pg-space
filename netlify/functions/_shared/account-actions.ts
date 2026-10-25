@@ -216,9 +216,40 @@ export async function handleAccountAction(
             `emailAccess/${input.action === "remove" ? input.email.toLowerCase() : ""}`,
           ),
         ];
+    const checkMissingAssignment = async (address: string) => {
+      try {
+        await auth.getUserByEmail(address);
+      } catch (error) {
+        if ((error as { code?: string }).code === "auth/user-not-found") return;
+        throw error;
+      }
+      throw new Rejected(
+        409,
+        "The PG access entry is already missing, but the Firebase sign-in account still exists. It was not deleted. Ask the owner to review this exact email in Firebase Authentication before removing that remaining account.",
+      );
+    };
+    if (input.action === "checkout" && !targets.length) {
+      const tenant = (
+        await db
+          .doc(
+            `accounts/${input.ownerUid}/records/tenants/items/${input.tenantId}`,
+          )
+          .get()
+      ).data();
+      if (!tenant)
+        throw new Rejected(
+          404,
+          "Resident not found. Login removal could not be confirmed.",
+        );
+      if (typeof tenant.email === "string" && tenant.email.trim())
+        await checkMissingAssignment(tenant.email.trim().toLowerCase());
+    }
     for (const target of targets) {
       const grant = (await target.get()).data();
-      if (!grant) continue;
+      if (!grant) {
+        await checkMissingAssignment(target.id);
+        continue;
+      }
       if (grant.ownerUid !== input.ownerUid || target.id === email)
         throw new Rejected(403, "You cannot remove this account.");
       if (input.action === "checkout" && grant.role !== "tenant") continue;
@@ -286,8 +317,22 @@ export async function handleAccountAction(
           );
       });
       if (user) {
-        await auth.revokeRefreshTokens(user.uid);
-        await auth.deleteUser(user.uid);
+        try {
+          await auth.revokeRefreshTokens(user.uid);
+          await auth.deleteUser(user.uid);
+        } catch (error) {
+          const code = (error as { code?: string }).code;
+          if (code === "auth/insufficient-permission") {
+            console.warn(
+              "Firebase account deletion denied: auth/insufficient-permission",
+            );
+            throw new Rejected(
+              503,
+              "Firebase did not allow sign-in account deletion. Ask the owner to check the Netlify service account's Firebase Authentication permissions, then retry Remove. The PG access entry is kept for retry.",
+            );
+          }
+          if (code !== "auth/user-not-found") throw error;
+        }
       }
       await db.runTransaction(async (tx) => {
         const fresh = (await tx.get(target)).data();

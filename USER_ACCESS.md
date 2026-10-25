@@ -60,6 +60,8 @@ Checkout ends the stay and marks portal access inactive in the same Firestore tr
 
 **Team & access → Remove** now deletes the Firebase sign-in account, rather than only removing the PG assignment. Its confirmation explains this. It keeps business records. No existing accounts are deleted merely by deploying this update.
 
+An account removed by an older app version can remain in Firebase Authentication after its PG access entry is gone. The app now checks this case and reports the remaining login instead of reporting a successful deletion. It cannot safely infer ownership of an unlinked Firebase account, so the owner must review the exact email in Firebase Authentication and remove it there if appropriate. If Firebase denies server-side deletion, the error now identifies the server account's Authentication permissions as the issue and keeps the PG entry so removal can be retried. **Clear all records** intentionally preserves sign-in accounts and team assignments; it is not a user-deletion action.
+
 The portal's server session check enables the active flag for existing tenants only when they still have a current stay; it never reactivates an explicitly blocked portal. Repair submission derives the resident, room and bed from saved data, sets status **Open**, and allows up to five requests per resident per hour. Staff and managers update status through Repairs. Tenants can only see their own requests and updates; browser writes to tickets remain denied. Old staff-created tickets without a resident link stay staff-only.
 
 Access changes are watched while the app is open, and pending data reads are discarded when the session changes. Firebase rules enforce restrictions independently of the browser UI.

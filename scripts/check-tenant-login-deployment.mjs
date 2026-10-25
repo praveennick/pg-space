@@ -1,6 +1,11 @@
 // Read-only checks: GET does not provision users or send emails.
 const origin = process.argv[2] || "https://lucky-luxury-pg.netlify.app";
-for (const path of ["/api/tenant-login", "/.netlify/functions/tenant-login"]) {
+for (const path of [
+  "/api/tenant-login",
+  "/.netlify/functions/tenant-login",
+  "/api/account-action",
+  "/.netlify/functions/account-action",
+]) {
   const url = new URL(path, origin).href;
   try {
     const response = await fetch(url, {
@@ -14,7 +19,7 @@ for (const path of ["/api/tenant-login", "/.netlify/functions/tenant-login"]) {
       const data = JSON.parse(body);
       result = typeof data.error === "string" ? data.error : "JSON response";
     } else if (/<!doctype html|<html/i.test(body))
-      result = "HTML page returned instead of the login function";
+      result = "HTML page returned instead of the server function";
     console.log(
       JSON.stringify({
         url,

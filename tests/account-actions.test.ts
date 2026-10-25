@@ -127,6 +127,47 @@ it("blocks staff from deleting arbitrary users", async () => {
   ).toBe(403);
   expect(auth.deleteUser).not.toHaveBeenCalled();
 });
+it("does not claim success for an orphan Firebase account with no PG assignment", async () => {
+  data.delete(assignment);
+  const response = await invoke({
+    action: "remove",
+    email: "resident@example.com",
+  });
+  expect(response.status).toBe(409);
+  expect((await response.json()).error).toContain(
+    "Firebase sign-in account still exists",
+  );
+  expect(auth.deleteUser).not.toHaveBeenCalled();
+});
+it("confirms an already removed account only when Auth also reports it absent", async () => {
+  data.delete(assignment);
+  auth.getUserByEmail.mockRejectedValue({ code: "auth/user-not-found" });
+  expect(
+    (await invoke({ action: "remove", email: "resident@example.com" })).status,
+  ).toBe(200);
+});
+it("reports a remaining login at checkout when the PG assignment is already gone", async () => {
+  data.delete(assignment);
+  data.set("accounts/owner/records/tenants/items/resident", {
+    email: "resident@example.com",
+  });
+  expect(
+    (await invoke({ action: "checkout", tenantId: "resident" })).status,
+  ).toBe(409);
+  expect(auth.deleteUser).not.toHaveBeenCalled();
+});
+it("explains a Firebase Auth deletion permission failure and retains retry metadata", async () => {
+  auth.deleteUser.mockRejectedValue({ code: "auth/insufficient-permission" });
+  const response = await invoke({
+    action: "remove",
+    email: "resident@example.com",
+  });
+  expect(response.status).toBe(503);
+  expect((await response.json()).error).toContain(
+    "Firebase Authentication permissions",
+  );
+  expect(data.has(assignment)).toBe(true);
+});
 it("protects PG owner accounts", async () => {
   auth.getUserByEmail.mockResolvedValue({ uid: "other-owner" });
   data.set("accounts/other-owner/records/settings/items/property", {});
