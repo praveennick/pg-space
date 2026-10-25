@@ -1,0 +1,224 @@
+/* Shared phone layouts: keep content readable rather than shrinking text to fit. */
+@media (max-width: 700px) {
+  .page-heading > div,
+  .section-title > div,
+  .profile-heading > div,
+  .bed-resident-heading h3,
+  .info-grid > div,
+  .review-summary > div,
+  .report-row > *,
+  .notification-row > div {
+    min-width: 0;
+  }
+
+  .page-heading,
+  .section-title {
+    flex-wrap: wrap;
+  }
+  .section-title > div {
+    flex: 1 1 180px;
+  }
+  .section-title > .btn,
+  .section-title > a {
+    max-width: 100%;
+    flex-shrink: 0;
+    min-height: 44px;
+  }
+  .section-title h2,
+  .profile-heading h2,
+  .bed-resident-heading h3,
+  .info-grid p,
+  .review-summary strong,
+  .access-email,
+  .access-description,
+  .tenant-card h3,
+  .tenant-card p,
+  .notification-row strong,
+  .operation-card h3,
+  .report-row,
+  .dialog-head h2 {
+    overflow-wrap: anywhere;
+  }
+
+  .btn {
+    min-height: 44px;
+    max-width: 100%;
+    white-space: normal;
+    line-height: 1.4;
+  }
+  .btn > svg {
+    flex-shrink: 0;
+  }
+  .button-row {
+    align-items: stretch;
+  }
+  .button-row > .btn {
+    flex: 0 1 auto;
+    min-width: 0;
+    min-height: 44px;
+  }
+  .button-row > .btn:only-child {
+    flex-grow: 0;
+  }
+  .dialog-footer {
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .dialog-footer > .btn {
+    flex: 1 1 120px;
+  }
+  .dialog-head > div {
+    min-width: 0;
+    flex: 1;
+  }
+  .dialog-head > .btn {
+    flex: 0 0 44px;
+  }
+  .dialog-head p,
+  .dialog-body > p,
+  .field,
+  .field small,
+  .review-summary > div,
+  .notification-layout .panel > p {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .wizard-steps small {
+    font-size: 11px;
+    line-height: 1.4;
+  }
+  .field input,
+  .field select,
+  .field textarea,
+  .date-entry input,
+  .list-toolbar input,
+  .list-toolbar select,
+  .filter-row input,
+  .filter-row select {
+    min-height: 44px;
+    font-size: 16px;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .check-label {
+    align-items: flex-start;
+    line-height: 1.5;
+    font-size: 14px;
+    min-height: 44px;
+    padding-block: 8px;
+  }
+  .check-label input {
+    flex-shrink: 0;
+    margin-top: 3px;
+  }
+
+  .report-row {
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .report-row > span:first-child {
+    flex: 1 1 130px;
+  }
+  .report-row > strong {
+    max-width: 100%;
+  }
+  .report-row .badge {
+    margin-left: 0;
+  }
+  .review-summary > div {
+    flex-wrap: wrap;
+    gap: 6px 14px;
+  }
+  .review-summary > div > strong {
+    max-width: 100%;
+  }
+  .detail-metrics > div {
+    flex: 1 1 130px;
+    min-width: 0;
+  }
+  .detail-metrics strong,
+  .report-metrics h2 {
+    overflow-wrap: anywhere;
+  }
+  .report-metrics small {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .pagination {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .pagination > span {
+    flex: 1 1 100%;
+    font-size: 13px;
+  }
+  .pagination .btn {
+    min-height: 44px;
+    font-size: 13px;
+  }
+
+  .attention-item {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding-block: 8px;
+  }
+  .attention-item > .attention-link {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 10px;
+    padding-block: 10px;
+  }
+  .attention-item > .reminder-inline {
+    width: auto;
+    min-height: 44px;
+    justify-self: end;
+    margin-bottom: 4px;
+  }
+  .attention-list p,
+  .attention-list strong {
+    overflow-wrap: anywhere;
+    line-height: 1.5;
+  }
+  .attention-list > a > div {
+    min-width: 0;
+  }
+  .attention-list .attention-bottom {
+    flex-wrap: wrap;
+    text-align: center;
+    line-height: 1.5;
+  }
+  .page-footer {
+    gap: 10px;
+    flex-wrap: wrap;
+    line-height: 1.5;
+  }
+  .page-footer > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .tenant-photo-controls {
+    width: 100%;
+  }
+  .camera-actions > .btn {
+    min-width: 0;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 380px) {
+  .page-heading .button-row,
+  .profile-heading .button-row {
+    width: 100%;
+  }
+  .dialog-body .button-row > .btn {
+    flex: 1 1 130px;
+  }
+  .report-metrics .panel {
+    padding: 12px;
+  }
+  .report-metrics h2 {
+    font-size: 20px;
+  }
+}

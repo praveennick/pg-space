@@ -522,6 +522,7 @@ export default function Dashboard({ reports = false }: { reports?: boolean }) {
               </Link>
             }
           />
+          {!payments.length && <p className="muted">No payments recorded yet.</p>}
           <div className="table-wrap">
             <table>
               <thead>
@@ -580,7 +581,7 @@ export default function Dashboard({ reports = false }: { reports?: boolean }) {
               const tenant = s.tenants.find((t) => t.id === i.tenantId);
               return (
                 <div className="attention-item" key={i.id}>
-                  <Link to="/app/payments?status=Outstanding">
+                  <Link className="attention-link" to="/app/payments?status=Outstanding">
                     <span className="attention-icon amber">
                       <Clock3 size={18} />
                     </span>

@@ -84,7 +84,8 @@ test("mobile navigation and record details remain reachable", async ({
     await expect(
       firstPayment.locator('td[data-label="Not used for rent"]'),
     ).toBeVisible();
-    await expect(firstPayment.locator("button", { name: /PDF/ })).toBeVisible();
+    await expect(firstPayment.getByRole("button", { name: "PDF", exact: true })).toBeVisible();
+    await expect(firstPayment.getByRole("button", { name: "Share receipt PDF", exact: true })).toBeVisible();
   }
 });
 

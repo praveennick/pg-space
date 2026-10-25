@@ -90,9 +90,7 @@ it("submits a request without client-selected identity or status and saves the t
   expect(
     await screen.findByRole("heading", { name: "Repairs & help" }),
   ).toBeVisible();
-  fireEvent.change(screen.getByLabelText("Colour theme"), {
-    target: { value: "dark" },
-  });
+  fireEvent.click(screen.getByRole("button", { name: "Dark mode" }));
   expect(document.documentElement.dataset.theme).toBe("dark");
   expect(localStorage.getItem("pg-theme")).toBe("dark");
   fireEvent.change(screen.getByLabelText("Describe the problem"), {
